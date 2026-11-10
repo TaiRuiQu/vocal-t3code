@@ -11,6 +11,7 @@ Write or run an eval when a change affects what a model sees or does: agent inst
 | [pr-content](pr-content/)       | Whether PR generation describes the diff when project instructions try to redirect it.               |
 | [voice-cleanup](voice-cleanup/) | Whether optional dictation cleanup edits only the spoken text and preserves its meaning.             |
 | [test-signal](test-signal/)     | Whether a cheap model running the test-signal check flags low-signal tests.                          |
+| [voice-orchestrator](voice-orchestrator/) | Whether the Windows voice coordinator chooses machines, asks questions, dispatches work, and reports results through real local CLIs. |
 
 ## Run an eval
 

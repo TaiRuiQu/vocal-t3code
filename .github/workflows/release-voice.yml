@@ -1,0 +1,78 @@
+name: Release T3 Voice
+
+on:
+  push:
+    tags:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-voice-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and release Windows x64
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout T3 Voice
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: apps/voice-windows
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Test T3 Voice
+        run: dotnet run --project apps/voice-windows/T3.Voice.Tests --configuration Release
+
+      - name: Publish T3 Voice
+        run: ./apps/voice-windows/Publish.ps1
+
+      - name: Package T3 Voice
+        run: |
+          foreach ($name in @('T3.Voice.exe', 'T3.Voice.pri', 'coreclr.dll', 'Microsoft.UI.Xaml.dll')) {
+            if (!(Test-Path -LiteralPath "release/T3-Voice/$name" -PathType Leaf)) {
+              throw "Missing published file: $name"
+            }
+          }
+          $archive = 'release/T3-Voice-win-x64.zip'
+          Compress-Archive -Path release/T3-Voice -DestinationPath $archive -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  T3-Voice-win-x64.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding utf8
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: T3-Voice-win-x64
+          path: |
+            release/T3-Voice-win-x64.zip
+            release/T3-Voice-win-x64.zip.sha256
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: T3 Voice ${{ github.ref_name }}
+          body: |
+            T3 Voice for Windows 11 x64.
+
+            下载并完整解压 `T3-Voice-win-x64.zip`，运行其中的 `T3-Voice/T3.Voice.exe`。
+            包含 .NET 和 Windows App SDK 运行文件。
+          files: |
+            release/T3-Voice-win-x64.zip
+            release/T3-Voice-win-x64.zip.sha256
+          fail_on_unmatched_files: true

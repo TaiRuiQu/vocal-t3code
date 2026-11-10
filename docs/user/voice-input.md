@@ -1,5 +1,20 @@
 # Voice input
 
+## Windows voice orchestration companion
+
+The separate T3 Voice companion runs in the Windows tray and sends spoken tasks
+to a local Codex or Claude Code coordinator, which can operate your connected T3
+Code environments. Double-tap **right Shift** to start recording, double-tap it
+again to send, or press **Esc** to cancel. Live transcription uses Alibaba Cloud
+ASR. Questions and task results appear in a corner without taking keyboard focus;
+the next recording can answer a pending question.
+
+Configure the transcription key and authorize each cloud computer in the
+companion's settings. Your task history and pending work survive restarts. See
+the [Windows companion setup](../../apps/voice-windows/README.md).
+
+## Dictation in T3 Code
+
 Dictate into the composer instead of typing. The transcript lands in your draft
 for review, and only sending the message sends anything to an agent. Dictation
 also works in citation comments, diff and file annotations, pull request

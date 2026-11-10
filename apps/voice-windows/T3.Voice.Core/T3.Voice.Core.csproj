@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>T3.Voice.Core</AssemblyName>
+    <RootNamespace>T3.Voice</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../T3.Voice/Models.cs" Link="Models.cs" />
+    <Compile Include="../T3.Voice/Storage/**/*.cs" Link="Storage/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../T3.Voice/Orchestration/**/*.cs" Link="Orchestration/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../T3.Voice/Providers/**/*.cs" Link="Providers/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../T3.Voice/Remote/**/*.cs" Link="Remote/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../T3.Voice/Speech/**/*.cs" Link="Speech/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../T3.Voice/Native/**/*.cs" Link="Native/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../T3.Voice/Orchestration/OrchestratorInstructions.txt" LogicalName="T3.Voice.Orchestration.OrchestratorInstructions.txt" />
+  </ItemGroup>
+</Project>

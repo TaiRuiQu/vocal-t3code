@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <UseWindowsForms>true</UseWindowsForms>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSelfContained>true</PublishSelfContained>
+    <PublishDir>$(MSBuildThisFileDirectory)..\..\..\release\T3-Voice\</PublishDir>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/t3-voice.ico</ApplicationIcon>
+    <AssemblyName>T3.Voice</AssemblyName>
+    <RootNamespace>T3.Voice</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../T3.Voice.Core/T3.Voice.Core.csproj" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.6.5" />
+    <Compile Remove="Models.cs;Storage/**/*.cs;Orchestration/**/*.cs;Providers/**/*.cs;Remote/**/*.cs;Speech/**/*.cs;Native/**/*.cs" />
+    <EmbeddedResource Include="Assets/t3-voice.ico" LogicalName="T3.Voice.Assets.t3-voice.ico" />
+    <Content Update="Assets\t3-voice.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- Code-only WinUI builds generate a PRI without adding it to publish output. -->
+  <Target Name="PublishProgrammaticWinUIResources" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(TargetDir)$(TargetName).pri" Condition="Exists('$(TargetDir)$(TargetName).pri')">
+        <RelativePath>$(TargetName).pri</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+</Project>
