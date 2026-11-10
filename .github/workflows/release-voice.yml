@@ -23,11 +23,19 @@ jobs:
       run:
         shell: pwsh
     steps:
+      # checkout's credential cleanup fails on orphaned .repos gitlinks.
       - name: Checkout T3 Voice
-        uses: actions/checkout@v6
-        with:
-          sparse-checkout: apps/voice-windows
-          persist-credentials: false
+        shell: bash
+        env:
+          CHECKOUT_REF: ${{ github.sha }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 --filter=blob:none origin "$CHECKOUT_REF"
+          git sparse-checkout set --cone apps/voice-windows
+          git checkout --detach FETCH_HEAD
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
