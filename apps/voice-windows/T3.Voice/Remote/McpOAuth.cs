@@ -136,7 +136,7 @@ public sealed class McpOAuth : IDisposable
                 ["state"] = state,
                 ["resource"] = resource.AbsoluteUri,
             });
-            openBrowser(new Uri(authorize));
+            openBrowser(await ResolveAuthorizationPageAsync(new Uri(authorize), ct).ConfigureAwait(false));
             var code = await completion.Task.WaitAsync(ct).ConfigureAwait(false);
             using var request = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint)
             {
@@ -168,6 +168,26 @@ public sealed class McpOAuth : IDisposable
             using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             await app.StopAsync(shutdown.Token).ConfigureAwait(false);
         }
+    }
+
+    private async Task<Uri> ResolveAuthorizationPageAsync(Uri authorization, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, authorization);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if ((int)response.StatusCode is < 300 or >= 400 || response.Headers.Location is not { } location)
+            return authorization;
+        var page = new Uri(authorization, location);
+        if (page.GetLeftPart(UriPartial.Path) != "https://app.t3.codes/approve-agent" ||
+            page.UserInfo.Length != 0 || page.Fragment.Length != 0)
+            return authorization;
+
+        var originalQuery = QueryHelpers.ParseQuery(authorization.Query);
+        var hostedQuery = QueryHelpers.ParseQuery(page.Query);
+        if (originalQuery.Any(field => !hostedQuery.TryGetValue(field.Key, out var value) || !field.Value.SequenceEqual(value)))
+            throw new RemoteMcpException("远端授权跳转与本次请求不匹配，请重新连接。");
+
+        // Source builds can advertise hosted approval before the stable web app ships the route.
+        return new UriBuilder(page) { Host = "nightly.app.t3.codes" }.Uri;
     }
 
     private async Task<JsonElement> GetJsonAsync(Uri endpoint, CancellationToken cancellationToken)

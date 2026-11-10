@@ -45,7 +45,7 @@ git push origin v0.1.0
 
 1. 选择本机 Codex 或 Claude Code；找不到命令时填写 `.exe` 完整路径。模型留空会使用对应 CLI 的默认值。切换提供商后沿用本地对话和记忆，各提供商分别保留自己的会话。
 2. 填写阿里云百炼 DashScope API Key、与其地域一致的 WebSocket 地址和实时 ASR 模型。默认是北京地域的 `fun-asr-realtime`。选择麦克风。
-3. 在每台 Windows / Ubuntu 云电脑上启动 T3 Code，登录它自己的 agent，并启用 T3 Connect。在助手中添加机器的 HTTPS 地址，在浏览器完成授权并选择完整权限。也支持已有的其他 HTTPS T3 访问地址。
+3. 在每台 Windows / Ubuntu 云电脑上启动 T3 Code，登录它自己的 agent，并启用 T3 Connect。在助手中添加机器的 HTTPS 地址，在浏览器完成授权并选择完整权限。T3 Connect 授权会自动打开兼容的 `nightly.app.t3.codes` 页面，使用云电脑关联的 T3 Connect 账号登录即可。也支持已有的其他 HTTPS T3 访问地址。
 4. 保存设置。主题可选跟随系统、浅色或深色，默认跟随系统；提示位置可选左上或右上。默认开机自启，可关闭。托盘双击打开任务和对话，右键打开设置或退出。
 
 ## 语音与任务

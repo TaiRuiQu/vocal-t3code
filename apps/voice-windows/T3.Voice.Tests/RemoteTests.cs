@@ -25,6 +25,7 @@ public static class RemoteTests
         await CancelsInFlightRequestAsync();
         await RejectsMismatchedAndOversizedResponsesAsync();
         await CompletesPkceWithValidatedCallbackAsync();
+        await RejectsChangedHostedAuthorizationAsync();
         await RejectsWrongOAuthResourceAsync();
         await CancelsOAuthCallbackWaitAsync();
     }
@@ -171,8 +172,20 @@ public static class RemoteTests
 
     private static async Task CompletesPkceWithValidatedCallbackAsync()
     {
+        foreach (var approval in new[]
+        {
+            (Page: "/connect-agent", Browser: "https://environment.test/oauth/mcp/authorize"),
+            (Page: "https://app.t3.codes/approve-agent", Browser: "https://nightly.app.t3.codes/approve-agent"),
+            (Page: "https://app.t3.codes.other.test/approve-agent", Browser: "https://environment.test/oauth/mcp/authorize"),
+        })
+            await CompletesPkceWithValidatedCallbackAsync(approval.Page, approval.Browser);
+    }
+
+    private static async Task CompletesPkceWithValidatedCallbackAsync(string approvalPage, string expectedBrowserPage)
+    {
         string? registeredRedirect = null;
         string? issuedChallenge = null;
+        string? authorizationQuery = null;
         Task browser = Task.CompletedTask;
         using var http = new HttpClient(new FakeHandler(async (request, ct) =>
         {
@@ -188,6 +201,11 @@ public static class RemoteTests
                         Assert(!body.RootElement.TryGetProperty("software_id", out _), "independent client is not a peer environment");
                     }
                     return Json(new { client_id = "registered-client" }, HttpStatusCode.Created);
+                case "/oauth/mcp/authorize":
+                    authorizationQuery = request.RequestUri.Query;
+                    var handoff = new HttpResponseMessage(HttpStatusCode.Found);
+                    handoff.Headers.Location = new Uri(approvalPage + authorizationQuery + "&environment=fixture-environment", UriKind.RelativeOrAbsolute);
+                    return handoff;
                 case "/oauth/mcp/token":
                     var form = QueryHelpers.ParseQuery(await request.Content!.ReadAsStringAsync(ct));
                     Assert(form["code"] == "fixture-code" && form["resource"] == "https://environment.test/mcp", "token resource and code");
@@ -203,13 +221,45 @@ public static class RemoteTests
         var credential = await oauth.AuthorizeAsync(new Uri(TestMachine.Url), authorization =>
         {
             var query = QueryHelpers.ParseQuery(authorization.Query);
-            Assert(authorization.AbsolutePath == "/oauth/mcp/authorize", "uses remote environment authorization UI");
+            Assert(authorization.GetLeftPart(UriPartial.Path) == expectedBrowserPage, "opens the expected approval page");
+            if (expectedBrowserPage == "https://nightly.app.t3.codes/approve-agent")
+            {
+                Assert(authorization.Query == authorizationQuery + "&environment=fixture-environment", "hosted approval preserves the full authorization query");
+            }
+            else
+            {
+                Assert(authorization.AbsolutePath == "/oauth/mcp/authorize", "uses remote environment authorization UI");
+            }
             Assert(query["code_challenge_method"] == "S256" && query["client_id"] == "registered-client", "authorization PKCE fields");
             issuedChallenge = query["code_challenge"].ToString();
             browser = SimulateBrowserAsync(query["redirect_uri"].ToString(), query["state"].ToString());
         }, CancellationToken.None);
         await browser;
         Assert(credential.AccessToken == "fixture-access" && credential.ExpiresAt > DateTimeOffset.UtcNow, "credential expiry returned");
+    }
+
+    private static async Task RejectsChangedHostedAuthorizationAsync()
+    {
+        using var http = new HttpClient(new FakeHandler((request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/.well-known/oauth-protected-resource/mcp")
+                return Task.FromResult(ResourceMetadata());
+            if (request.RequestUri.AbsolutePath == "/.well-known/oauth-authorization-server")
+                return Task.FromResult(ServerMetadata());
+            if (request.RequestUri.AbsolutePath == "/oauth/mcp/register")
+                return Task.FromResult(Json(new { client_id = "registered-client" }, HttpStatusCode.Created));
+            Assert(request.RequestUri.AbsolutePath == "/oauth/mcp/authorize", "authorization request precedes hosted handoff");
+            var fields = QueryHelpers.ParseQuery(request.RequestUri.Query)
+                .ToDictionary(field => field.Key, field => (string?)field.Value.ToString());
+            fields["redirect_uri"] = "http://127.0.0.1:12345/wrong-callback";
+            var response = new HttpResponseMessage(HttpStatusCode.Found);
+            response.Headers.Location = new Uri(QueryHelpers.AddQueryString("https://app.t3.codes/approve-agent", fields));
+            return Task.FromResult(response);
+        }));
+        using var oauth = new McpOAuth(http);
+        var openedBrowser = false;
+        await ThrowsAsync<RemoteMcpException>(() => oauth.AuthorizeAsync(new Uri(TestMachine.Url), _ => openedBrowser = true, CancellationToken.None));
+        Assert(!openedBrowser, "changed authorization cannot open a hosted approval page");
     }
 
     private static async Task SimulateBrowserAsync(string redirect, string state)
@@ -247,6 +297,7 @@ public static class RemoteTests
             "/.well-known/oauth-protected-resource/mcp" => ResourceMetadata(),
             "/.well-known/oauth-authorization-server" => ServerMetadata(),
             "/oauth/mcp/register" => Json(new { client_id = "registered-client" }, HttpStatusCode.Created),
+            "/oauth/mcp/authorize" => new HttpResponseMessage(HttpStatusCode.OK),
             _ => throw new Exception("Unexpected request after OAuth cancellation"),
         })));
         using var oauth = new McpOAuth(http);
