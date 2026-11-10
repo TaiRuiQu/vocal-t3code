@@ -4075,6 +4075,8 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       appExecutableName: `${resolveDesktopProductName(appVersion)}.exe`,
       targetArch: options.arch,
       appVersion,
+      // Portable carries the relay client and the current native helper DLLs.
+      fileLimit: options.target === "portable" ? 100 : WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT,
       expectWslRuntime: bundlesWslRuntime({
         platform: options.platform,
         runtimeArchivePath: options.wslRuntime,
@@ -4090,7 +4092,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const copiedArtifacts = yield* copyDesktopBuildArtifacts(
     stageDistDir,
     options.outputDir,
-    options.target === "dir",
+    options.target === "dir" || options.target === "portable",
   );
 
   if (copiedArtifacts.length === 0) {
