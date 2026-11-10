@@ -16,12 +16,12 @@ dotnet run --project apps/voice-windows/T3.Voice.Tests -- --eval --provider clau
 
 Real runs consume the selected CLI account's subscription quota or configured billing. The harness cannot measure monetary cost and records it as unknown. Start with one case and one sample. Do not describe real CLI runs as free merely because no API key is needed.
 
-| Case | Source | Behavior checked |
-| --- | --- | --- |
-| `ambiguous-project` | Authored control from this feature's requirements | Asks which Acme project; does not dispatch while the target is unclear. |
-| `new-task-preserves-question` | Authored regression case for persistent questions | Dispatches an explicit unrelated task while preserving the unanswered colour question. |
-| `dispatch-and-return` | Authored ordinary-work control | Selects the named machine and project, supplies the goal and test requirement, dispatches once, and returns without waiting or polling. |
-| `completion-report` | Authored completion control | Reports the supplied health-check outcome and PR, without starting or waiting for more work. |
+| Case                          | Source                                            | Behavior checked                                                                                                                        |
+| ----------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `ambiguous-project`           | Authored control from this feature's requirements | Asks which Acme project; does not dispatch while the target is unclear.                                                                 |
+| `new-task-preserves-question` | Authored regression case for persistent questions | Dispatches an explicit unrelated task while preserving the unanswered colour question.                                                  |
+| `dispatch-and-return`         | Authored ordinary-work control                    | Selects the named machine and project, supplies the goal and test requirement, dispatches once, and returns without waiting or polling. |
+| `completion-report`           | Authored completion control                       | Reports the supplied health-check outcome and PR, without starting or waiting for more work.                                            |
 
 `--case` accepts comma-separated IDs. `--samples` defaults to three and accepts 1–10. `--timeout-seconds` bounds each trajectory, defaults to 120, and accepts 20–600. Results contain behavioral checks, bounded final text and observed fake-remote calls; they exclude CLI session IDs, bearer credentials and the temporary workspace path. Native provider errors are sanitized again before writing. The harness starts each sample in a separate temporary database and local CLI conversation.
 
