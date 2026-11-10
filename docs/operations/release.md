@@ -4,6 +4,20 @@
 
 This document covers the unified release workflow for stable and nightly desktop releases.
 
+## This fork's Windows releases
+
+Pushing any tag runs `.github/workflows/release-voice.yml`, which publishes T3 Voice and a
+Windows x64 T3 Code portable EXE together. The desktop job reads the public T3 Connect settings
+from `.env.example` and stages the pinned, checksum-verified cloudflared executable through
+`scripts/stage-windows-relay-client.ts`. It needs no relay deployment credentials.
+
+The portable EXE includes the desktop, its server, and the relay client. Double-click it on the
+cloud computer, sign in, and enable T3 Connect without downloading another relay client. Update
+by downloading a newer portable EXE; this target has no automatic update feed. It uses the
+native Windows backend; a WSL runtime is not included.
+
+The upstream release workflow described below remains restricted to `pingdotgg/t3code`.
+
 Beta is the product label, not a release channel or version suffix. Release channels
 remain stable and nightly. To ship 0.1.0 Beta, use `channel=stable` and
 `version=0.1.0`. Removing the Beta label later is a branding change independent of

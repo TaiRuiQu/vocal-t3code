@@ -29,6 +29,7 @@ squashfs-root/
 .plans/
 /audits/
 dist-electron/
+apps/desktop/resources/relay-client/
 .electron-runtime/
 .showcase/
 apps/mobile/.showcase/

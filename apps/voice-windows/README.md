@@ -23,8 +23,8 @@ powershell -NoProfile -File apps/voice-windows/Publish.ps1
 ## GitHub 自动打包
 
 将 T3 Voice 源码和 `.github/workflows/release-voice.yml` 提交并推送后，每次推送新 tag
-都会在 Windows runner 上运行测试、独立打包 T3 Voice，并上传到该 tag 的 GitHub Release。
-此流程不构建 T3 Code 本体，也不安装仓库的 Node 或 pnpm 依赖。
+都会在 Windows runner 上分别测试、打包 T3 Voice 和 T3 Code，并上传到同一个 GitHub Release。
+T3 Voice 仍独立运行；云电脑可下载同次发布的 T3 Code Windows x64 便携版。
 
 ```powershell
 git tag v0.1.0
@@ -34,6 +34,10 @@ git push origin v0.1.0
 在仓库的 Releases 中下载 `T3-Voice-win-x64.zip`，完整解压后运行
 `T3-Voice\T3.Voice.exe`。同时提供 `.sha256` 校验文件，Actions 页面也保留打包产物。
 该流程使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需额外配置发布密钥。
+
+云电脑下载 `T3-Code-<版本>-x64-portable.exe` 后双击即可运行，无需安装 Node 或 .NET。
+它已包含 T3 Connect relay client，登录并启用 T3 Connect 时无需再下载 cloudflared。
+便携版通过下载新版 EXE 更新。
 
 ## 首次设置
 

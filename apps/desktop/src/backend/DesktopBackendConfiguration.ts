@@ -788,7 +788,7 @@ export const make = Effect.gen(function* () {
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
     );
     const shellEnvironmentPrepared = yield* shellEnvironment.installIntoProcess;
-    return yield* resolvePrimaryStartConfig({
+    const config = yield* resolvePrimaryStartConfig({
       ...shared,
       resourceMonitorPath,
       cliPath,
@@ -797,6 +797,20 @@ export const make = Effect.gen(function* () {
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
       Effect.provideService(DesktopServerExposure.DesktopServerExposure, serverExposure),
     );
+    const hostEnv = yield* HostProcess.Environment;
+    const relayClientPath = environment.path.join(
+      environment.resourcesPath,
+      "relay-client/cloudflared.exe",
+    );
+    if (
+      environment.isPackaged &&
+      environment.platform === "win32" &&
+      !hostEnv.T3CODE_CLOUDFLARED_PATH?.trim() &&
+      (yield* fileSystem.exists(relayClientPath))
+    ) {
+      return { ...config, env: { ...config.env, T3CODE_CLOUDFLARED_PATH: relayClientPath } };
+    }
+    return config;
   });
 
   // Resolve on each restart so toggling wsl-only takes effect without recreating the pool.

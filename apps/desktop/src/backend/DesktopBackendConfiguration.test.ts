@@ -280,7 +280,24 @@ describe("DesktopBackendConfiguration", () => {
 
       const config = yield* Effect.gen(function* () {
         const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
-        return yield* configuration.resolvePrimary;
+        const resolve = configuration.resolvePrimary.pipe(
+          Effect.provideService(HostProcess.Environment, {}),
+        );
+        assert.isUndefined((yield* resolve).env.T3CODE_CLOUDFLARED_PATH);
+
+        const relayClientPath = path.join(resourcesPath, "relay-client/cloudflared.exe");
+        yield* fileSystem.makeDirectory(path.dirname(relayClientPath), { recursive: true });
+        yield* fileSystem.writeFileString(relayClientPath, "cloudflared");
+        const bundled = yield* resolve;
+        assert.equal(bundled.env.T3CODE_CLOUDFLARED_PATH, relayClientPath);
+
+        const overridden = yield* configuration.resolvePrimary.pipe(
+          Effect.provideService(HostProcess.Environment, {
+            T3CODE_CLOUDFLARED_PATH: "C:\\custom\\cloudflared.exe",
+          }),
+        );
+        assert.isUndefined(overridden.env.T3CODE_CLOUDFLARED_PATH);
+        return bundled;
       }).pipe(
         Effect.provide(
           layerBackendConfiguration().pipe(
