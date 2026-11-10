@@ -28,15 +28,6 @@ interface ProjectScriptRuntimeEnvInput {
   extraEnv?: Record<string, string>;
 }
 
-export function projectScriptCwd(input: {
-  project: {
-    cwd: string;
-  };
-  worktreePath?: string | null;
-}): string {
-  return input.worktreePath ?? input.project.cwd;
-}
-
 export function projectScriptRuntimeEnv(
   input: ProjectScriptRuntimeEnvInput,
 ): Record<string, string> {
@@ -54,14 +45,6 @@ export function projectScriptRuntimeEnv(
 
 export function setupProjectScript(scripts: readonly ProjectScript[]): ProjectScript | null {
   return scripts.find((script) => script.runOnWorktreeCreate) ?? null;
-}
-
-export function projectScriptMenuLabel(script: ProjectScript): string {
-  const roles = [
-    ...(script.runOnWorktreeCreate ? ["setup"] : []),
-    ...(script.runOnSettle ? ["on settle"] : []),
-  ];
-  return roles.length === 0 ? script.name : `${script.name} (${roles.join(", ")})`;
 }
 
 export function settleProjectScript(scripts: readonly ProjectScript[]): ProjectScript | null {

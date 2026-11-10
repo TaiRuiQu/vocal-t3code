@@ -53,14 +53,9 @@ export const AgentScope = Context.Reference<AgentScopeShape>("@t3tools/shared/Ag
   }),
 });
 
-export const AgentScopeThreadId = Context.Reference<string | undefined>(
-  "@t3tools/shared/AgentScope/ThreadId",
-  { defaultValue: () => undefined },
-);
-
 export const AGENT_OOM_SCORE_ADJ = 800;
 
-export const RAISE_OOM_SCORE_LINE = `{ echo ${AGENT_OOM_SCORE_ADJ} >/proc/self/oom_score_adj; } 2>/dev/null`;
+const RAISE_OOM_SCORE_LINE = `{ echo ${AGENT_OOM_SCORE_ADJ} >/proc/self/oom_score_adj; } 2>/dev/null`;
 
 const LAUNCH_SCRIPT = [RAISE_OOM_SCORE_LINE, 'exec "$@"'].join("\n");
 

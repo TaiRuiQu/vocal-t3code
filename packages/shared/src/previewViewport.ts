@@ -139,7 +139,7 @@ const PREVIEW_VIEWPORT_PRESET_DEFINITIONS = {
   },
 } as const satisfies Record<PreviewViewportPresetId, PreviewViewportPresetDefinition>;
 
-export const PREVIEW_VIEWPORT_PRESETS: ReadonlyArray<PreviewViewportPreset> =
+const PREVIEW_VIEWPORT_PRESETS: ReadonlyArray<PreviewViewportPreset> =
   PREVIEW_VIEWPORT_PRESET_IDS.map((id) => ({
     id,
     ...PREVIEW_VIEWPORT_PRESET_DEFINITIONS[id],

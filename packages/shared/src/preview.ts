@@ -115,7 +115,7 @@ function fillSearchUrlTemplate(template: string, query: string): string {
  * `%s` in the host or credentials is rejected: the query would never reach a
  * search page, and a query with spaces would make the host unreachable.
  */
-export function isValidSearchUrlTemplate(template: string): boolean {
+function isValidSearchUrlTemplate(template: string): boolean {
   if (!template.includes("%s")) return false;
   try {
     // Two queries land on different authorities only when `%s` sits before the path.

@@ -91,7 +91,7 @@ export function dedupeTurnItemBodies(
   }
 }
 
-export function restoreTurnItemBodies(
+function restoreTurnItemBodies(
   item: OrchestrationV2TurnItem,
   source: DedupedBodySource,
 ): OrchestrationV2TurnItem {

@@ -8,19 +8,27 @@ import * as RelayClient from "@t3tools/shared/relayClient";
 import { assert, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Console from "effect/Console";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as TestConsole from "effect/testing/TestConsole";
+import * as TestClock from "effect/testing/TestClock";
 import { Command } from "effect/cli";
+import { HttpClient, HttpClientResponse } from "effect/http";
 
+import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { makeCli } from "../binCli.ts";
+import * as CliState from "../cloud/CliState.ts";
+import * as CliTokenManager from "../cloud/CliTokenManager.ts";
+import * as ExternalLauncher from "../process/externalLauncher.ts";
 import {
   makePersistedServerRuntimeState,
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
-import { acquireRelayClientForLink } from "./connect.ts";
+import { acquireRelayClientForLink, linkEnvironmentForConnect } from "./connect.ts";
 
 const managedExecutable = {
   status: "available",
@@ -56,6 +64,122 @@ it.effect("does not install the relay client when the user declines the managed 
     assert.isTrue(Option.isNone(result));
     assert.equal(installCalls, 0);
   }),
+);
+
+it.effect.each(["saved", "missing"] as const)(
+  "enables a managed connection with a %s credential before checking the relay client",
+  (credential) =>
+    Effect.gen(function* () {
+      const operations: string[] = [];
+      const secrets = new Map<string, Uint8Array>();
+      if (credential === "saved") {
+        secrets.set(
+          "cloud-cli-oauth-token",
+          new TextEncoder().encode(
+            JSON.stringify({
+              accessToken: "saved-access",
+              refreshToken: "saved-refresh",
+              expiresAtEpochMs: 3_600_000,
+            }),
+          ),
+        );
+      }
+      const externalDependencies = Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        Layer.mock(ServerSecretStore.ServerSecretStore)({
+          get: (name) => Effect.sync(() => Option.fromUndefinedOr(secrets.get(name))),
+          set: (name, value) =>
+            Effect.sync(() => {
+              operations.push(`save:${name}`);
+              secrets.set(name, value);
+            }),
+        }),
+        Layer.mock(ExternalLauncher.ExternalLauncher)({
+          launchBrowser: () => Effect.die("Terminal sign-in must not open a browser"),
+        }),
+        Layer.succeed(
+          HttpClient.HttpClient,
+          HttpClient.make((request) =>
+            Effect.sync(() => {
+              operations.push(request.url);
+              return HttpClientResponse.fromWeb(
+                request,
+                Response.json(
+                  request.url.endsWith("/oauth/device_authorization")
+                    ? {
+                        device_code: "device-code",
+                        user_code: "BCDF-GHJK",
+                        verification_uri: "https://accounts.example.test/device",
+                        expires_in: 600,
+                        interval: 5,
+                      }
+                    : {
+                        access_token: "new-access",
+                        refresh_token: "new-refresh",
+                        expires_in: 3600,
+                        token_type: "Bearer",
+                      },
+                ),
+              );
+            }),
+          ),
+        ),
+        ConfigProvider.layer(
+          ConfigProvider.fromEnv({
+            env: {
+              T3CODE_CLERK_PUBLISHABLE_KEY: "pk_test_Y2xlcmsuZXhhbXBsZS50ZXN0JA==",
+              T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: "oauth-client-test",
+            },
+          }),
+        ),
+        Layer.mock(RelayClient.RelayClient)({
+          resolve: Effect.sync(() => {
+            operations.push("relay");
+            return managedExecutable;
+          }),
+        }),
+      );
+      yield* Effect.gen(function* () {
+        const linking = yield* linkEnvironmentForConnect({
+          headless: true,
+          installRelayClient: true,
+        }).pipe(Effect.forkChild);
+        yield* TestClock.adjust(Duration.seconds(5));
+        assert.isNotNull(yield* Fiber.join(linking));
+        assert.equal(yield* CliState.readCliDesiredLinkMode, "managed");
+        assert.isTrue(yield* CliState.readCliDesiredCloudLink);
+        const manager = yield* CliTokenManager.CloudCliTokenManager;
+        const stored = Option.getOrThrow(yield* manager.getExisting);
+        assert.equal(stored.accessToken, credential === "saved" ? "saved-access" : "new-access");
+        assert.equal(stored.refreshToken, credential === "saved" ? "saved-refresh" : "new-refresh");
+        const output = (yield* TestConsole.logLines).join("\n");
+        if (credential === "saved") {
+          assert.deepEqual(operations, ["relay", "save:cloud-cli-desired-link"]);
+          assert.notInclude(output, "Sign in");
+        } else {
+          assert.deepEqual(operations, [
+            "https://clerk.example.test/oauth/device_authorization",
+            "https://clerk.example.test/oauth/token",
+            "save:cloud-cli-oauth-token",
+            "relay",
+            "save:cloud-cli-desired-link",
+          ]);
+          assert.include(output, "https://accounts.example.test/device");
+          assert.include(output, "BCDF-GHJK");
+        }
+        assert.notInclude(output, "new-access");
+        assert.notInclude(output, "saved-access");
+      }).pipe(
+        Effect.provide(
+          CliTokenManager.layer.pipe(
+            Layer.provideMerge(
+              Layer.mergeAll(externalDependencies, Layer.fresh(TestConsole.layer)),
+            ),
+          ),
+        ),
+      );
+    }),
 );
 
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer))(

@@ -507,110 +507,102 @@ function miseToolInstalls(
  * driver's fixed mise tool, launched through a shim or the `latest` link `mise upgrade` moves;
  * a fixed version's path would keep running the pruned binary, so it stays manual-only.
  */
-export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMaintenance")(
-  function* (
-    owner: { readonly provider: ProviderDriverKind; readonly packageName: string | null },
-    mise: MiseProviderTool | undefined,
-    context: ProviderMaintenanceResolutionContext,
-  ) {
-    const commandPaths = [context.resolvedCommandPath, context.realCommandPath];
-    const isShim = isMiseExecutablePath(context.realCommandPath);
-    const looksMise =
-      isShim || commandPaths.some(isMiseCommandPath) || (yield* isMiseWrapperScript(context));
-    const manual = (installPath: string) =>
-      makeManualOnlyProviderMaintenanceCapabilities({ ...owner, installPath });
-    const notOwned = (installPath: string) => (looksMise ? manual(installPath) : null);
-    const commandName = normalizeCommandPath(context.resolvedCommandPath)
-      .split("/")
-      .at(-1)
-      ?.replace(/\.(?:exe|cmd|bat|ps1)$/, "");
-    if (!mise) return notOwned(context.realCommandPath);
-    const miseTool = mise.tool;
-    // A shim runs whatever mise resolves for its own name, which must be the mapped tool's.
-    if (isShim && commandName !== miseTool) return manual(context.realCommandPath);
+const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMaintenance")(function* (
+  owner: { readonly provider: ProviderDriverKind; readonly packageName: string | null },
+  mise: MiseProviderTool | undefined,
+  context: ProviderMaintenanceResolutionContext,
+) {
+  const commandPaths = [context.resolvedCommandPath, context.realCommandPath];
+  const isShim = isMiseExecutablePath(context.realCommandPath);
+  const looksMise =
+    isShim || commandPaths.some(isMiseCommandPath) || (yield* isMiseWrapperScript(context));
+  const manual = (installPath: string) =>
+    makeManualOnlyProviderMaintenanceCapabilities({ ...owner, installPath });
+  const notOwned = (installPath: string) => (looksMise ? manual(installPath) : null);
+  const commandName = normalizeCommandPath(context.resolvedCommandPath)
+    .split("/")
+    .at(-1)
+    ?.replace(/\.(?:exe|cmd|bat|ps1)$/, "");
+  if (!mise) return notOwned(context.realCommandPath);
+  const miseTool = mise.tool;
+  // A shim runs whatever mise resolves for its own name, which must be the mapped tool's.
+  if (isShim && commandName !== miseTool) return manual(context.realCommandPath);
 
-    const fileSystem = yield* FileSystem.FileSystem;
-    const realPath = (target: string) =>
-      fileSystem.realPath(target).pipe(Effect.orElseSucceed(() => target));
-    const misePath =
-      (yield* resolveCommandPath("mise", { env: context.env })) ??
-      (isShim ? context.realCommandPath : null);
-    if (!misePath) return notOwned(context.realCommandPath);
-    // Asked even off mise's usual paths, since `MISE_DATA_DIR` can put installs anywhere.
-    const which = nonEmptyString(yield* runProbe(misePath, ["which", miseTool], context.env));
-    const resolvedPath = which ? yield* realPath(which) : null;
-    // Through a shim T3 Code runs whatever mise resolves; otherwise the configured binary.
-    const binaryPath = isShim ? resolvedPath : context.realCommandPath;
-    if (!binaryPath) return manual(context.realCommandPath);
-    const binary = normalizeCommandPath(binaryPath);
-    const runsBinary = resolvedPath !== null && normalizeCommandPath(resolvedPath) === binary;
-    const listing = yield* runProbe(
-      misePath,
-      ["ls", "--json", "--installed", miseTool],
-      context.env,
-    );
-    if (!listing) return runsBinary ? manual(binaryPath) : notOwned(binaryPath);
-    const isUnder = (path: string, dir: string) =>
-      path.startsWith(`${normalizeCommandPath(dir).replace(/\/+$/, "")}/`);
-    // An inactive or shadowed install is still mise's, even when `mise which` resolves another.
-    const owning = yield* Effect.filter(miseToolInstalls(listing, miseTool), (install) =>
-      realPath(install.install_path).pipe(
-        Effect.map((installPath) => isUnder(binary, installPath)),
-      ),
-    );
-    // `mise which` also resolves binaries from other tools, such as npm globals under mise's Node.
-    if (owning.length === 0) return notOwned(binaryPath);
-    if (!runsBinary) return manual(binaryPath);
-    const install = owning.find(
-      (candidate) => candidate.active === true && candidate.requested_version === "latest",
-    );
-    if (!install || mise.upgrade === false) return manual(binaryPath);
-    if (!isShim) {
-      // Keep the path's case: `realPath` needs it on case-sensitive filesystems.
-      const toolDir = install.install_path
-        .replaceAll("\\", "/")
-        .replace(/\/+$/, "")
-        .replace(/\/[^/]+$/, "");
-      const latestDirs = [toolDir, yield* realPath(toolDir)].map((dir) => `${dir}/latest`);
-      const resolved = normalizeCommandPath(context.resolvedCommandPath);
-      if (!latestDirs.some((dir) => isUnder(resolved, dir))) return manual(binaryPath);
-    }
-    const args = ["upgrade", miseTool];
-    const services = yield* Effect.context<ProviderMaintenanceResolverServices>();
-    // Mise reads its settings from this environment, so each one gets its own cached answer.
-    const envHash = NodeCrypto.createHash("sha256");
-    for (const [name, value] of Object.entries(context.env).toSorted(([a], [b]) =>
-      a < b ? -1 : 1,
-    )) {
-      envHash.update(`${name}\0${value ?? ""}\0`);
-    }
-    const envKey = envHash.digest("hex");
-    const capabilities = makeProviderMaintenanceCapabilities({
-      ...owner,
-      updateExecutable: misePath,
-      updateArgs: args,
-      updateLockKey: "mise",
-      updateCommand: ["mise", ...args].join(" "),
-      platform: context.platform,
-      // Mise read its config from this environment, so the upgrade runs in it too.
-      env: context.env,
-      // Settings such as `minimum_release_age` can hold mise behind the registry,
-      // so only mise can say what it installs. It may go to the network, so ask lazily.
-      latestVersion: null,
-      lookupLatestVersion: runProbe(misePath, ["latest", miseTool], context.env).pipe(
-        Effect.map((latest) => {
-          const version = nonEmptyString(latest);
-          return version && /^\S+$/.test(version) ? version : null;
-        }),
-        Effect.provideContext(services),
-      ),
-    });
-    return {
-      ...capabilities,
-      latestVersionCacheKey: ["mise", misePath, miseTool, envKey].join("\0"),
-    };
-  },
-);
+  const fileSystem = yield* FileSystem.FileSystem;
+  const realPath = (target: string) =>
+    fileSystem.realPath(target).pipe(Effect.orElseSucceed(() => target));
+  const misePath =
+    (yield* resolveCommandPath("mise", { env: context.env })) ??
+    (isShim ? context.realCommandPath : null);
+  if (!misePath) return notOwned(context.realCommandPath);
+  // Asked even off mise's usual paths, since `MISE_DATA_DIR` can put installs anywhere.
+  const which = nonEmptyString(yield* runProbe(misePath, ["which", miseTool], context.env));
+  const resolvedPath = which ? yield* realPath(which) : null;
+  // Through a shim T3 Code runs whatever mise resolves; otherwise the configured binary.
+  const binaryPath = isShim ? resolvedPath : context.realCommandPath;
+  if (!binaryPath) return manual(context.realCommandPath);
+  const binary = normalizeCommandPath(binaryPath);
+  const runsBinary = resolvedPath !== null && normalizeCommandPath(resolvedPath) === binary;
+  const listing = yield* runProbe(misePath, ["ls", "--json", "--installed", miseTool], context.env);
+  if (!listing) return runsBinary ? manual(binaryPath) : notOwned(binaryPath);
+  const isUnder = (path: string, dir: string) =>
+    path.startsWith(`${normalizeCommandPath(dir).replace(/\/+$/, "")}/`);
+  // An inactive or shadowed install is still mise's, even when `mise which` resolves another.
+  const owning = yield* Effect.filter(miseToolInstalls(listing, miseTool), (install) =>
+    realPath(install.install_path).pipe(Effect.map((installPath) => isUnder(binary, installPath))),
+  );
+  // `mise which` also resolves binaries from other tools, such as npm globals under mise's Node.
+  if (owning.length === 0) return notOwned(binaryPath);
+  if (!runsBinary) return manual(binaryPath);
+  const install = owning.find(
+    (candidate) => candidate.active === true && candidate.requested_version === "latest",
+  );
+  if (!install || mise.upgrade === false) return manual(binaryPath);
+  if (!isShim) {
+    // Keep the path's case: `realPath` needs it on case-sensitive filesystems.
+    const toolDir = install.install_path
+      .replaceAll("\\", "/")
+      .replace(/\/+$/, "")
+      .replace(/\/[^/]+$/, "");
+    const latestDirs = [toolDir, yield* realPath(toolDir)].map((dir) => `${dir}/latest`);
+    const resolved = normalizeCommandPath(context.resolvedCommandPath);
+    if (!latestDirs.some((dir) => isUnder(resolved, dir))) return manual(binaryPath);
+  }
+  const args = ["upgrade", miseTool];
+  const services = yield* Effect.context<ProviderMaintenanceResolverServices>();
+  // Mise reads its settings from this environment, so each one gets its own cached answer.
+  const envHash = NodeCrypto.createHash("sha256");
+  for (const [name, value] of Object.entries(context.env).toSorted(([a], [b]) =>
+    a < b ? -1 : 1,
+  )) {
+    envHash.update(`${name}\0${value ?? ""}\0`);
+  }
+  const envKey = envHash.digest("hex");
+  const capabilities = makeProviderMaintenanceCapabilities({
+    ...owner,
+    updateExecutable: misePath,
+    updateArgs: args,
+    updateLockKey: "mise",
+    updateCommand: ["mise", ...args].join(" "),
+    platform: context.platform,
+    // Mise read its config from this environment, so the upgrade runs in it too.
+    env: context.env,
+    // Settings such as `minimum_release_age` can hold mise behind the registry,
+    // so only mise can say what it installs. It may go to the network, so ask lazily.
+    latestVersion: null,
+    lookupLatestVersion: runProbe(misePath, ["latest", miseTool], context.env).pipe(
+      Effect.map((latest) => {
+        const version = nonEmptyString(latest);
+        return version && /^\S+$/.test(version) ? version : null;
+      }),
+      Effect.provideContext(services),
+    ),
+  });
+  return {
+    ...capabilities,
+    latestVersionCacheKey: ["mise", misePath, miseTool, envKey].join("\0"),
+  };
+});
 
 export const resolvePackageManagedProviderMaintenance = Effect.fn(
   "resolvePackageManagedProviderMaintenance",
@@ -805,7 +797,7 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
  * that reports it as its own. Version checks defer `brew info` until needed.
  * Null when no `brew` is found or it owns another prefix.
  */
-export const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProviderMaintenance")(
+const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProviderMaintenance")(
   function* (
     input: { readonly provider: ProviderDriverKind; readonly packageName: string | null },
     homebrew: HomebrewOwnership,

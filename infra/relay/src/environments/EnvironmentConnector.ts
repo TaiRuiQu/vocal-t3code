@@ -1,11 +1,11 @@
 import {
+  EnvironmentHttpApi,
   EnvironmentHttpBadRequestError,
   EnvironmentHttpConflictError,
   EnvironmentHttpForbiddenError,
   EnvironmentHttpInternalServerError,
   EnvironmentHttpUnauthorizedError,
 } from "@t3tools/contracts";
-import { makeEnvironmentHttpApiClient } from "@t3tools/client-runtime/rpc";
 import {
   RelayCloudEnvironmentHealthProofPayload,
   RelayEnvironmentHealthResponse,
@@ -41,6 +41,7 @@ import * as Schema from "effect/Schema";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientError from "effect/http/HttpClientError";
+import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
 import { diagnoseEndpointFailure } from "./endpointFailure.ts";
 import * as EnvironmentLinks from "./EnvironmentLinks.ts";
@@ -378,7 +379,7 @@ const make = Effect.gen(function* () {
   const mint = yield* CloudMintSigner.CloudMintSigner;
   const relayIssuer = normalizeRelayIssuer(settings.relayIssuer);
   const makeEnvironmentClient = (httpBaseUrl: string) =>
-    makeEnvironmentHttpApiClient(httpBaseUrl).pipe(
+    HttpApiClient.make(EnvironmentHttpApi, { baseUrl: new URL("/", httpBaseUrl).toString() }).pipe(
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );
   const resolveManagedEndpoint = Effect.fn("relay.environment_connector.resolve_managed_endpoint")(

@@ -9,6 +9,7 @@ import * as Option from "effect/Option";
 import { afterAll, assert, describe, it } from "@effect/vitest";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -20,6 +21,7 @@ import {
   defaultConcurrency,
   docReaderTests,
   gitLines,
+  generatedCheckInputs,
   runSteps,
   splitTests,
   type Step,
@@ -47,6 +49,39 @@ describe("check:changed", () => {
     ]);
     assert.deepStrictEqual(decide(["docs/user/install.md"], packages, false).affected, []);
   });
+
+  it.effect(
+    "collects generated inputs without following Windows junctions or dependency directories",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-check-inputs-" });
+        const files = [
+          ".env.local",
+          "src/types.d.ts",
+          "src/.generated/schema.ts",
+          "src/.astro/types.ts",
+          "node_modules/ignored.d.ts",
+          ".t3/ignored.d.ts",
+          "dist/ignored.d.ts",
+        ];
+        for (const file of files) {
+          const absolute = NodePath.join(root, file);
+          yield* fs.makeDirectory(NodePath.dirname(absolute), { recursive: true });
+          yield* fs.writeFileString(absolute, "fixture");
+        }
+        yield* Effect.sync(() =>
+          NodeFS.symlinkSync(root, NodePath.join(root, "src", "cycle"), "junction"),
+        );
+        const collected = yield* generatedCheckInputs(root);
+        assert.deepStrictEqual(collected.map((file) => file.replaceAll("\\", "/")).sort(), [
+          ".env.local",
+          "src/.astro/types.ts",
+          "src/.generated/schema.ts",
+          "src/types.d.ts",
+        ]);
+      }).pipe(Effect.provide(NodeServices.layer)),
+  );
 
   it.effect(
     "keeps weighted steps within the budget, in order, and serial steps one at a time",
@@ -198,30 +233,26 @@ describe("check:changed", () => {
     });
   });
 
-  it("opens the built desktop app only for startup, settlement, and sidebar changes", () => {
+  it("routes host changes through server checks and Voice changes through .NET checks", () => {
     const packages = readWorkspace();
-    const launches = (file: string) => decide([file], packages, false).outputs.desktop_launch;
     for (const file of [
       "apps/server/src/orchestration-v2/ThreadSettlementService.ts",
       "apps/server/src/persistence/Migrations/054_ProjectionThreadsAutoSettleDisabledAt.ts",
-      "apps/web/src/components/sidebar/SidebarThreadRow.tsx",
-      "apps/desktop/src/backend/DesktopBackendManager.ts",
-      "apps/desktop/src/electron/ElectronProtocol.ts",
       "packages/contracts/src/settings.ts",
-      "scripts/fixtures/desktop-launch/statev2.sqlite",
+      "packages/provider-opencode/src/server/OpenCodeRuntime.ts",
+      "scripts/lib/cli-external-packages.ts",
     ]) {
-      assert.isTrue(launches(file), file);
+      const { outputs } = decide([file], packages, false);
+      assert.isTrue(outputs.test_server, file);
+      assert.isTrue(outputs.build, file);
+      assert.isFalse(outputs.voice, file);
     }
-    for (const file of [
-      "apps/server/src/orchestration-v2/ThreadSettlementService.test.ts",
-      "apps/web/src/components/chat/ChatView.tsx",
-      "apps/desktop/src/updates/DesktopRemoteUpdates.ts",
-      "packages/contracts/src/orchestration.ts",
-    ]) {
-      assert.isFalse(launches(file), file);
-    }
-    // A script-only change still builds the app it opens.
-    assert.isTrue(decide(["scripts/smoke-desktop-app.ts"], packages, false).outputs.build);
+    const { outputs } = decide(["apps/voice-windows/T3.Voice/Remote/McpOAuth.cs"], packages, false);
+    assert.isTrue(outputs.voice);
+    assert.isFalse(outputs.typecheck);
+    assert.isFalse(outputs.build);
+    assert.isFalse(outputs.test);
+    assert.isFalse(outputs.test_server);
   });
 
   it.each([
@@ -412,6 +443,7 @@ function launcherFixture() {
     root,
     source,
     write,
+    git,
     run(failStep = "") {
       return NodeChildProcess.spawnSync(process.execPath, ["scripts/check-changed.ts", "HEAD"], {
         cwd: root,
@@ -431,6 +463,10 @@ function launcherFixture() {
 
 it("checks changed source paths through the Windows launcher", () => {
   using project = launcherFixture();
+  const binary = "packages/example/image.bin";
+  project.write(binary, "\0original");
+  project.git("add", binary);
+  project.git("commit", "-m", "binary fixture");
   project.write(project.source, "export const value = 2;\n");
   const result = project.run();
   expect(result.status, result.stdout + result.stderr).toBe(0);
@@ -444,6 +480,16 @@ it("checks changed source paths through the Windows launcher", () => {
   expect(calls.some(({ args }) => args[0] === "install")).toBe(false);
   expect(result.stdout).toContain("fixture stdout: lint");
   expect(result.stdout).toContain("fixture stderr: lint");
+  expect(project.run().stdout).toContain("Nothing changed since the last passing run");
+  project.write(binary, "\0modified");
+  const modified = project.run();
+  expect(modified.status, modified.stdout + modified.stderr).toBe(0);
+  expect(modified.stdout).not.toContain("Nothing changed since the last passing run");
+  NodeFS.unlinkSync(NodePath.join(project.root, binary));
+  const deleted = project.run();
+  expect(deleted.status, deleted.stdout + deleted.stderr).toBe(0);
+  expect(deleted.stdout).not.toContain("Nothing changed since the last passing run");
+  expect(project.run().stdout).toContain("Nothing changed since the last passing run");
 });
 
 it("lints an Astro component and runs knip when only it changed", () => {

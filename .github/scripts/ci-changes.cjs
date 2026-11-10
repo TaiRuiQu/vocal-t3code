@@ -12,61 +12,28 @@ const INERT = [
   /^LICENSE$/,
 ];
 
-// Shared test setup and vendored mobile dependencies affect every package.
+// Shared test setup affects every package.
 const RUNS_EVERYTHING = [
   /^packages\/shared\/src\/(HostProcess|testing\/(longTempDir|providerEnv))\.ts$/,
-  /^apps\/mobile\/deps\//,
 ];
 
 // Includes cross-package reads absent from package.json dependencies.
 const EXTRA_OWNERS = [
-  // Vite configs and tsconfigs of these apps import scripts/lib directly.
-  [/^scripts\/lib\//, ["@t3tools/desktop", "@t3tools/mobile", "@t3tools/web", "t3"]],
-  // scripts/build-desktop-artifact.ts reads the GNOME extension manifest.
-  [/^apps\/desktop\/gnome-extension\//, ["@t3tools/scripts"]],
-  [/^native\/browser-secret\//, ["@t3tools/desktop"]],
-  [/^native\/kde-snap-shot\//, ["@t3tools/desktop"]],
-  [/^native\/libghostty-vt\//, ["@t3tools/web"]],
+  // The server build imports scripts/lib directly.
+  [/^scripts\/lib\//, ["t3"]],
   // apps/server/src/cloud/ConnectReachability.test.ts checks the guide's headings.
   [/^docs\/user\/t3-connect-troubleshooting\.md$/, ["t3"]],
 ];
-const RUST = /^native\/(resource-monitor|kde-snap-shot|hyprland-snap-shot)\//;
+const RUST = /^native\/resource-monitor\//;
+const VOICE = /^apps\/voice-windows\//;
 
 // These tests read other packages without declaring dependencies.
 const TEST_ONLY_DEPS = {
   // Evals import the server's source to test its real model-facing text.
   "@t3tools/evals": ["t3"],
-  "@t3tools/provider-pi": ["@t3tools/client-runtime"],
-  "@t3tools/scripts": [
-    "@t3tools/desktop",
-    "@t3tools/mobile",
-    "@t3tools/web",
-    "t3",
-    "@t3tools/provider-cursor",
-  ],
+  "@t3tools/scripts": ["t3"],
 };
-// The server bundles the web build without importing it.
-const BUILD_ONLY_DEPS = { t3: ["@t3tools/web"] };
-
-const MOBILE_NATIVE =
-  /^apps\/mobile\/.*\.(swift|kt|kts)$|^apps\/mobile\/(\.swiftlint\.yml|detekt\.yml|\.editorconfig|Brewfile)$|^scripts\/mobile-native-static-check\.ts$|^package\.json$|^\.github\/workflows\/ci\.yml$|^\.github\/scripts\/ci-changes\.cjs$|^\.github\/actions\/ci-changes\//;
-
-// Startup, migration, settlement, and sidebar paths that decide whether an upgraded user's
-// threads show after launch. Build runs scripts/smoke-desktop-app.ts for them, so they do not
-// first fail in the release launch check.
-const DESKTOP_LAUNCH = [
-  /^apps\/desktop\/src\/((main|boot|compileCache|serverCompileCache)\.ts$|(app|backend|window)\/)/,
-  /^apps\/desktop\/src\/electron\/(ElectronApp|ElectronProtocol|ElectronWindow)\.ts$/,
-  /^apps\/web\/src\/((main|AppRoot|appInit)\.tsx|(bootstrap|router)\.ts)$/,
-  /^apps\/web\/src\/.*sidebar/i,
-  /^apps\/server\/src\/(bin|binMain|server|serverRuntimeStartup)\.ts$/,
-  /^apps\/server\/src\/persistence\/Migrations/,
-  /^apps\/server\/src\/orchestration-v2\/((ThreadSettlementService|ProjectionStore)\.ts$|legacy\/)/,
-  /^packages\/contracts\/src\/settings\.ts$/,
-  /^scripts\/(smoke-desktop-app\.ts|fixtures\/desktop-launch\/)/,
-];
-
-const OWN_TEST_JOB = new Set(["t3", "@t3tools/web", "@t3tools/monorepo"]);
+const OWN_TEST_JOB = new Set(["t3", "@t3tools/monorepo"]);
 
 function readWorkspace() {
   const patterns = [];
@@ -77,14 +44,25 @@ function readWorkspace() {
     if (entry) patterns.push(entry[1]);
   }
 
-  const dirs = patterns.flatMap((pattern) => {
-    if (!pattern.endsWith("/*")) return [pattern];
-    const parent = pattern.slice(0, -2);
-    return fs.readdirSync(path.join(root, parent)).map((name) => `${parent}/${name}`);
-  });
+  const exclusions = patterns
+    .filter((pattern) => pattern.startsWith("!"))
+    .map((pattern) => pattern.slice(1));
+  const dirs = patterns
+    .filter((pattern) => !pattern.startsWith("!"))
+    .flatMap((pattern) => {
+      if (!pattern.endsWith("/*")) return [pattern];
+      const parent = pattern.slice(0, -2);
+      return fs.readdirSync(path.join(root, parent)).map((name) => `${parent}/${name}`);
+    });
 
   const packages = [];
   for (const dir of dirs) {
+    if (
+      exclusions.some((pattern) =>
+        pattern.endsWith("/*") ? dir.startsWith(pattern.slice(0, -1)) : dir === pattern,
+      )
+    )
+      continue;
     const manifestPath = path.join(root, dir, "package.json");
     if (!fs.existsSync(manifestPath)) continue;
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -97,11 +75,7 @@ function readWorkspace() {
       name: manifest.name,
       dir,
       hasTest: Boolean(manifest.scripts?.test),
-      deps: Object.keys(deps).filter(
-        (dep) =>
-          String(deps[dep]).startsWith("workspace:") &&
-          !BUILD_ONLY_DEPS[manifest.name]?.includes(dep),
-      ),
+      deps: Object.keys(deps).filter((dep) => String(deps[dep]).startsWith("workspace:")),
     });
   }
   return packages;
@@ -110,11 +84,11 @@ function readWorkspace() {
 // [] means inert; null means unknown and requires every job.
 function ownersOf(file, packages) {
   const extra = EXTRA_OWNERS.flatMap(([pattern, names]) => (pattern.test(file) ? names : []));
+  if (VOICE.test(file)) return [];
   if (INERT.some((pattern) => pattern.test(file))) return extra;
   // A manifest can change dependencies or versions other packages read.
   if (path.posix.basename(file) === "package.json") return null;
   if (RUNS_EVERYTHING.some((pattern) => pattern.test(file))) return null;
-  // scripts/build-desktop-artifact.test.ts reads the crates' sources.
   if (RUST.test(file)) return ["@t3tools/scripts", ...extra];
 
   const owner = packages
@@ -141,8 +115,6 @@ function decide(files, packages, full) {
     }
   }
 
-  // Release smoke reads scripts/ itself, not what the scripts tests read.
-  let scriptsChanged = everything;
   if (everything) {
     affected = all;
   } else {
@@ -156,7 +128,6 @@ function decide(files, packages, full) {
         }
       }
     }
-    scriptsChanged = affected.has("@t3tools/scripts");
     for (const [name, deps] of Object.entries(TEST_ONLY_DEPS)) {
       if (deps.some((dep) => affected.has(dep))) affected.add(name);
     }
@@ -166,26 +137,17 @@ function decide(files, packages, full) {
     (pkg) => pkg.hasTest && !OWN_TEST_JOB.has(pkg.name) && affected.has(pkg.name),
   );
   const has = (name) => affected.has(name);
-  const desktopLaunch =
-    everything ||
-    files.some(
-      (file) => !/\.test\.tsx?$/.test(file) && DESKTOP_LAUNCH.some((pattern) => pattern.test(file)),
-    );
-
   return {
     affected: [...affected].sort(),
     outputs: {
       typecheck: affected.size > 0,
-      build: has("@t3tools/desktop") || has("t3") || has("@t3tools/web") || desktopLaunch,
-      desktop_launch: desktopLaunch,
+      build: has("t3") || has("@t3tools/scripts"),
       test: tested.length > 0,
       // Empty means every package the Test job covers.
       test_packages: everything ? "" : tested.map((pkg) => pkg.name).join(" "),
-      test_web: has("@t3tools/web"),
       test_server: has("t3"),
       rust: everything || rust,
-      release_smoke: scriptsChanged,
-      mobile_native: files === null || files.some((file) => MOBILE_NATIVE.test(file)),
+      voice: everything || files.some((file) => VOICE.test(file)),
     },
   };
 }

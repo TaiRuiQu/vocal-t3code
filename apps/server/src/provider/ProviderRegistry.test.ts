@@ -48,7 +48,6 @@ import { checkCodexProviderStatus, type CodexAppServerProviderSnapshot } from ".
 import { BUNDLED_CLAUDE_MODEL_CATALOG } from "./ClaudeModelCatalog.ts";
 import { checkClaudeProviderStatus } from "./ClaudeProvider.ts";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
-import * as AntigravityInstallation from "./AntigravityInstallation.ts";
 import * as ModelManifest from "./ModelManifest.ts";
 import { applyProviderCompatibility } from "./providerCompatibility.ts";
 import * as ResetCreditCoordinator from "./resetCreditCoordinator.ts";
@@ -2751,7 +2750,6 @@ it.layer(
           Layer.provideMerge(
             ProviderInstanceRegistryHydration.layer.pipe(Layer.provide(PortScanner.layerTest)),
           ),
-          Layer.provideMerge(AntigravityInstallation.AntigravityInstallation.layer),
           Layer.provideMerge(
             Layer.succeed(ServerSettingsModule.ServerSettingsService, serverSettings),
           ),
@@ -2846,7 +2844,7 @@ it.layer(
       }),
     );
 
-    it.effect("includes unavailable instance snapshots in getProviders", () =>
+    it.effect("omits configured providers removed from this host", () =>
       Effect.gen(function* () {
         const serverSettings = yield* makeMutableServerSettingsService(
           decodeServerSettings(
@@ -2869,7 +2867,6 @@ it.layer(
           Layer.provideMerge(
             ProviderInstanceRegistryHydration.layer.pipe(Layer.provide(PortScanner.layerTest)),
           ),
-          Layer.provideMerge(AntigravityInstallation.AntigravityInstallation.layer),
           Layer.provideMerge(
             Layer.succeed(ServerSettingsModule.ServerSettingsService, serverSettings),
           ),
@@ -2905,11 +2902,12 @@ it.layer(
           const providers = yield* registry.getProviders;
           const ghost = providers.find((provider) => provider.instanceId === "ghost_main");
 
-          assert.notStrictEqual(ghost, undefined);
-          assert.strictEqual(ghost?.driver, "ghostDriver");
-          assert.strictEqual(ghost?.availability, "unavailable");
-          assert.strictEqual(Object.hasOwn(ghost ?? {}, "setup"), false);
-          assert.match(ghost?.unavailableReason ?? "", /ghostDriver/);
+          assert.isUndefined(ghost);
+          assert.deepEqual(providers.map((provider) => provider.driver).sort(), [
+            "claudeAgent",
+            "codex",
+            "opencode",
+          ]);
         }).pipe(Effect.provide(runtimeServices));
       }),
     );
@@ -2928,7 +2926,7 @@ it.layer(
             "pi",
             "muse",
           ),
-          ...(instanceId ? { [instanceId]: { driver: "ghostDriver" } } : {}),
+          ...(instanceId ? { [instanceId]: { driver: "codex", config: { binaryPath: 42 } } } : {}),
         },
       });
 
@@ -2977,7 +2975,6 @@ it.layer(
       } satisfies ServerSettingsModule.ServerSettingsService["Service"];
       const dependencies = yield* Layer.build(
         Layer.mergeAll(
-          AntigravityInstallation.AntigravityInstallation.layer,
           ServerSecretStore.layer,
           OpenCodeRuntime.layer.pipe(Layer.provide(OpenCodeServerLedger.layerTest)),
         ).pipe(

@@ -41,7 +41,7 @@ public sealed class LocalMcpServer(VoiceTools tools) : IAsyncDisposable
             {
                 object result = method switch
                 {
-                    "initialize" => new { protocolVersion = "2025-03-26", capabilities = new { tools = new { listChanged = false } }, serverInfo = new { name = "t3-voice", version = "0.1.0" } },
+                    "initialize" => new { protocolVersion = "2025-03-26", capabilities = new { tools = new { listChanged = false } }, serverInfo = new { name = "t3-voice", version = "0.2.0" } },
                     "ping" => new { },
                     "tools/list" => VoiceTools.Catalog(),
                     "tools/call" => await tools.CallAsync(VoiceTools.Required(request.GetProperty("params"), "name"), request.GetProperty("params").TryGetProperty("arguments", out var arguments) ? arguments : JsonSerializer.SerializeToElement(new { }), context.RequestAborted),

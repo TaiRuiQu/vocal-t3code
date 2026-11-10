@@ -19,7 +19,7 @@ Effect.gen(function* () {
   const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-bundle-relay-" });
   const client = yield* RelayClient.makeCloudflaredRelayClient({ baseDir });
   const installed = yield* client.install;
-  const destination = path.resolve(import.meta.dirname, "../apps/desktop/resources/relay-client");
+  const destination = path.resolve(import.meta.dirname, "../apps/server/resources/relay-client");
   yield* fs.makeDirectory(destination, { recursive: true });
   yield* fs.copyFile(installed.executablePath, path.join(destination, "cloudflared.exe"));
 

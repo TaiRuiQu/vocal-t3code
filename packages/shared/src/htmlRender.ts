@@ -69,55 +69,6 @@ export function readHtmlRenderReference(value: unknown): HtmlRenderReference | u
   };
 }
 
-export function htmlRenderReferencesEqual(left: HtmlRenderReference, right: HtmlRenderReference) {
-  return (
-    left.attachmentId === right.attachmentId &&
-    left.title === right.title &&
-    left.height === right.height &&
-    (left.heights ?? []).length === (right.heights ?? []).length &&
-    (left.heights ?? []).every(
-      ([width, height], index) =>
-        right.heights?.[index]?.[0] === width && right.heights[index][1] === height,
-    )
-  );
-}
-
-// Use the taller neighboring measurement because breakpoints can select either height.
-function measuredHeight(heights: NonNullable<HtmlRenderReference["heights"]>, width: number) {
-  const above = heights.findIndex(([measuredWidth]) => measuredWidth >= width);
-  const high = above === -1 ? heights.length - 1 : above;
-  const low = heights[high]![0] === width ? high : Math.max(0, high - 1);
-  return Math.max(heights[low]![1], heights[high]![1]);
-}
-
-/**
- * A page even a few pixels taller than its frame scrolls inside it and takes
- * the reader's scroll, so the frame fits the page. A client that measured the
- * live page passes `contentHeight`, which wins over the agent's height: client
- * fonts often wrap the page taller than the server or agent measured it.
- */
-export function htmlRenderFrameHeight(
-  reference: HtmlRenderReference,
-  width: number,
-  contentHeight?: number,
-) {
-  if (contentHeight !== undefined) {
-    return Math.min(
-      HTML_RENDER_MAX_FIT_HEIGHT,
-      Math.max(HTML_RENDER_MIN_HEIGHT, Math.ceil(contentHeight)),
-    );
-  }
-  const heights = reference.heights;
-  if (heights === undefined || heights.length === 0) {
-    return clampHtmlRenderHeight(reference.height);
-  }
-  const cap =
-    measuredHeight(heights, HTML_RENDER_COLUMN_WIDTH) > reference.height
-      ? reference.height
-      : HTML_RENDER_MAX_HEIGHT;
-  return clampHtmlRenderHeight(Math.min(cap, measuredHeight(heights, width)));
-}
-
 export function htmlRenderFileName(title: string) {
   const name = title
     .replace(/[\\/:*?"<>|\p{Cc}]+/gu, " ")
@@ -137,7 +88,7 @@ export interface HtmlRenderFonts {
   readonly mono: string;
 }
 
-export const HTML_RENDER_DEFAULT_FONTS: HtmlRenderFonts = {
+const HTML_RENDER_DEFAULT_FONTS: HtmlRenderFonts = {
   sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
   // Concrete names only: some engines alias `ui-monospace` to the proportional UI font.
   mono: '"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
@@ -245,17 +196,6 @@ const SHORTCUTS_METHOD = "t3/notifications/shortcuts";
 const KEY_DOWN_METHOD = "t3/notifications/keydown";
 const OPEN_IMAGE_METHOD = "t3/notifications/open-image";
 
-export function readHtmlRenderContentHeight(data: unknown): number | undefined {
-  if (typeof data !== "object" || data === null) return undefined;
-  const { jsonrpc, method, params } = data as Record<string, unknown>;
-  if (jsonrpc !== "2.0" || method !== SIZE_CHANGED_METHOD) return undefined;
-  const height =
-    typeof params === "object" && params !== null
-      ? (params as { height?: unknown }).height
-      : undefined;
-  return typeof height === "number" && Number.isFinite(height) && height > 0 ? height : undefined;
-}
-
 export function readHtmlRenderLinkRequest(data: unknown):
   | {
       readonly id: string | number;
@@ -289,68 +229,10 @@ export function readHtmlRenderImageRequest(
   return { src, name: label || "Image" };
 }
 
-export function readHtmlRenderKeyDown(data: unknown):
-  | {
-      readonly key: string;
-      readonly code: string;
-      readonly metaKey: boolean;
-      readonly ctrlKey: boolean;
-      readonly shiftKey: boolean;
-      readonly altKey: boolean;
-      readonly repeat: boolean;
-    }
-  | undefined {
-  if (typeof data !== "object" || data === null) return undefined;
-  const { jsonrpc, method, params } = data as Record<string, unknown>;
-  if (jsonrpc !== "2.0" || method !== KEY_DOWN_METHOD) return undefined;
-  if (typeof params !== "object" || params === null) return undefined;
-  const { key, code, metaKey, ctrlKey, shiftKey, altKey, repeat } = params as Record<
-    string,
-    unknown
-  >;
-  if (typeof key !== "string" || typeof code !== "string") return undefined;
-  return {
-    key,
-    code,
-    metaKey: metaKey === true,
-    ctrlKey: ctrlKey === true,
-    shiftKey: shiftKey === true,
-    altKey: altKey === true,
-    repeat: repeat === true,
-  };
-}
-
-export interface HtmlRenderShortcut {
-  readonly key: string;
-  readonly metaKey: boolean;
-  readonly ctrlKey: boolean;
-  readonly shiftKey: boolean;
-  readonly altKey: boolean;
-}
-
-export function htmlRenderShortcutsMessage(
-  shortcuts: ReadonlyArray<HtmlRenderShortcut>,
-  blocked: ReadonlyArray<HtmlRenderShortcut>,
-) {
-  return { jsonrpc: "2.0", method: SHORTCUTS_METHOD, params: { shortcuts, blocked } } as const;
-}
-
-export function htmlRenderResult(id: string | number) {
-  return { jsonrpc: "2.0", id, result: {} } as const;
-}
-
 const THEME_FRAGMENT_KEY = "t3-theme";
 
 export function htmlRenderThemeFragment(theme: HtmlRenderTheme): string {
   return `#${THEME_FRAGMENT_KEY}=${encodeURIComponent(JSON.stringify(theme))}`;
-}
-
-export function htmlRenderThemeMessage(theme: HtmlRenderTheme) {
-  return {
-    jsonrpc: "2.0",
-    method: HOST_CONTEXT_CHANGED_METHOD,
-    params: { theme: theme.appearance, styles: { variables: theme.variables } },
-  } as const;
 }
 
 const BASE_CSS =

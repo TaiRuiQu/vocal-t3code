@@ -50,20 +50,3 @@ export function writeFakeCli(options: FakeCliOptions): string {
   NodeFS.chmodSync(launcherPath, 0o755);
   return launcherPath;
 }
-
-export function execScriptSource(options: {
-  readonly scriptPath: string;
-  readonly expectedArgs?: ReadonlyArray<string>;
-}): string {
-  return [
-    'import { pathToFileURL } from "node:url";',
-    "const args = process.argv.slice(2);",
-    `const expected = ${JSON.stringify(options.expectedArgs ?? [])};`,
-    "if (expected.some((value, index) => args[index] !== value)) {",
-    '  process.stderr.write(`unexpected args: ${args.join(" ")}\\n`);',
-    "  process.exit(11);",
-    "}",
-    `await import(pathToFileURL(${JSON.stringify(options.scriptPath)}).href);`,
-    "",
-  ].join("\n");
-}

@@ -39,7 +39,7 @@ import {
 } from "./markdownPipeline.ts";
 
 // Inline wrappers (including Shiki token spans) must not split a search phrase.
-export const THREAD_FIND_BLOCK_TAGS = new Set([
+const THREAD_FIND_BLOCK_TAGS = new Set([
   "address",
   "article",
   "aside",

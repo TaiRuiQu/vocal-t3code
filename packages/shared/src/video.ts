@@ -10,8 +10,6 @@ const VIDEO_MIME_TYPE_BY_EXTENSION = new Map([
   ["webm", "video/webm"],
 ]);
 
-export const VIDEO_FILE_EXTENSIONS = Object.freeze([...VIDEO_MIME_TYPE_BY_EXTENSION.keys()]);
-
 export function videoMimeType(attachment: {
   readonly name: string;
   readonly mimeType: string;

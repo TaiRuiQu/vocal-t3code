@@ -1,153 +1,47 @@
-# T3 Code
+# T3 Code · T3 Voice Host
 
-T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
+这是供 T3 Voice 连接的终端后端。仅保留 OpenCode、Codex 和 Claude Code；不包含 Web、Electron、移动端或营销站点界面。
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, Google Antigravity, and fx. If they're set up on your computer, T3 Code can control them.
+## 使用
 
-## "Wait, what are you selling me?"
+1. 在运行后端的电脑上安装并登录至少一个 provider 的 CLI。
+2. 下载并完整解压 Windows 终端版压缩包，双击其中的 `t3.exe`。
+3. 首次启动会在终端显示 T3 Connect 登录网址和验证码。在任意设备上完成登录；后续启动自动复用保存的授权。
+4. 等待终端出现 `T3 Voice connection:`，复制下一行的 HTTPS 地址，在 T3 Voice 设置中添加机器并授权。
+5. 保持终端运行。按 Ctrl+C 停止后端。
 
-Nothing. We built T3 Code because we wanted the best possible development experience with agents. We were inspired by existing solutions like the Codex desktop app, Conductor, Claude Desktop and Cursor Glass, but none met our bar.
+T3 Connect 的登录负责远程连接；OpenCode、Codex 和 Claude Code 使用这台电脑上各自 CLI 的登录。T3 Voice 首次添加机器时还需要使用同一个 T3 Connect 账号完成连接授权。
 
-We wanted something performant, remote-ready, and truly open. If we ever go the wrong direction, we want you to have everything you need to fork and build the editor that you want.
+HTTPS 地址在隧道健康检查通过后才会显示。不要把登录网址、验证码、配对二维码链接或 relay 地址填入 T3 Voice。
 
-## Installation
+## 源码运行
 
-> [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, Antigravity, and fx. Install and authenticate at least one provider before use:
->
-> - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
-> - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
-> - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `agent login`
-> - Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
-> - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
-> - Antigravity: enable it in Settings, then use **Install Antigravity** and **Sign in with Google**. No CLI is required.
-> - fx: install [fx](https://fx.sh) and run `fx login` on the machine running the T3 Code server ([setup guide](./docs/user/providers-fx.md))
-
-### Command line
-
-```bash
-curl -fsSL https://t3.codes/install.sh | sh
-```
-
-On Windows, in PowerShell:
+使用仓库要求的 Node 版本和 Vite+，安装依赖后启用仓库提供的 T3 Connect 公共配置：
 
 ```powershell
-irm https://t3.codes/install.ps1 | iex
-```
-
-Then run `t3` to start the server and open the local web app. `t3 service install` keeps it running in the background, `t3 update` moves to a newer release, and `t3 --help` has the full reference.
-
-To try it once without installing, run `npx t3@latest`. It offers to install the `t3` command for you.
-
-### Desktop app
-
-Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
-
-#### Windows (`winget`)
-
-```bash
-winget install T3Tools.T3Code
-```
-
-#### Windows (`scoop`)
-
-```bash
-scoop install extras/t3code
-```
-
-#### macOS (Homebrew)
-
-```bash
-brew install --cask t3-code
-```
-
-#### Debian, Ubuntu (`.deb`)
-
-Download the `.deb` from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), then:
-
-```bash
-sudo apt install ./T3-Code-*.deb
-```
-
-#### Arch Linux (AUR)
-
-Stable:
-
-```bash
-yay -S t3code-bin
-```
-
-Nightly:
-
-```bash
-yay -S t3code-nightly-bin
-```
-
-The AUR packaging is maintained in this repository under [`packaging/aur`](./packaging/aur).
-
-#### Nix (nixpkgs)
-
-```bash
-nix profile add github:NixOS/nixpkgs/nixos-unstable#t3code
-```
-
-The package is maintained in [nixpkgs](https://github.com/NixOS/nixpkgs/tree/nixos-unstable/pkgs/by-name/t3/t3code)
-and includes the desktop app (`t3code-desktop`) and the `t3` command.
-See [Nix installation](./docs/user/install.md#nix-nixpkgs) for NixOS configuration and updates.
-
-## Some notes
-
-We are very very early in this project. Expect bugs.
-
-We are (mostly) not accepting contributions yet. Small fixes may be considered. Big features will not be.
-
-## Documentation
-
-Full docs live in [docs/](./docs). There's no docs site yet.
-
-- [FAQ](./docs/user/faq.md)
-- [Install and first run](./docs/user/install.md)
-- [Permission modes](./docs/user/permission-modes.md)
-- [Keyboard shortcuts](./docs/user/keybindings.md)
-- [Project settings](./docs/user/project-settings.md)
-- [Appearance preferences](./docs/user/appearance.md)
-- [Remote access from a phone or another machine](./docs/user/remote-access.md)
-- [Connect Claude Code, Codex, ChatGPT and other agents over MCP](./docs/user/outside-agents.md)
-- [Keeping app and server in sync](./docs/user/updating.md)
-- [Source control integrations](./docs/user/source-control.md)
-- Multiple accounts: [Codex](./docs/user/providers-codex.md) · [Claude](./docs/user/providers-claude.md)
-- [Run T3 Code as a background service](./docs/user/background-service.md)
-
-Building from source? Start at [docs/internals/overview.md](./docs/internals/overview.md).
-
-## If you REALLY want to contribute still.... read this first
-
-### Install `vp`
-
-T3 Code uses Vite+ so you'll need to install the global `vp` command-line tool.
-
-#### macOS / Linux
-
-```bash
-curl -fsSL https://vite.plus | bash
-```
-
-#### Windows
-
-```bash
-irm https://vite.plus/ps1 | iex
-```
-
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
-
-### Install dependencies
-
-```bash
+Copy-Item .env.example .env
 vp i
+vp run dev
 ```
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before reporting a bug or opening a PR.
+如果已有 `.env`，保留它并补充 `.env.example` 中的公共配置。开发数据使用当前 checkout 的隔离目录；不要把开发服务器指向正在使用的安装数据。
 
-Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
+## 构建
 
-Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
+Windows x64 构建还需要 Rust 工具链和 Visual Studio C++ Build Tools。完成上面的依赖和公共配置设置后运行：
+
+```powershell
+vp run build
+vp run build:exe
+node scripts/stage-windows-relay-client.ts
+cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml --target x86_64-pc-windows-msvc
+New-Item -ItemType Directory -Force apps/server/dist/resource-monitor | Out-Null
+Copy-Item native/resource-monitor/target/x86_64-pc-windows-msvc/release/t3-resource-monitor.exe apps/server/dist/resource-monitor/
+vp run dist:cli --platform win --arch x64 --version 0.2.0 --output-dir release/t3-code --relay-client-dir apps/server/resources/relay-client
+```
+
+产物为 `release/t3-code/t3-0.2.0-win32-x64.zip`，完整解压后运行 `t3.exe`。Windows 发布包包含原生终端程序、所需依赖和经过校验的 T3 Connect relay client；无需安装 Node 或 Electron。发布流程同时构建独立的 T3 Voice 应用。
+
+常用命令：`t3` 启动并自动登录，`t3 connect logout` 退出登录，`t3 serve` 使用已保存连接无交互启动。`--base-dir <目录>` 可指定独立的数据目录。
+
+T3 Voice 的说明见 [apps/voice-windows/README.md](apps/voice-windows/README.md)。

@@ -26,7 +26,7 @@ import {
   createStageWorkspaceConfig,
   resolveFffNativeDependencies,
   STAGE_INSTALL_ARGS,
-} from "./build-desktop-artifact.ts";
+} from "./lib/runtime-stage.ts";
 import { assertLinuxArm64PageCompatibility } from "./lib/linux-arm64-sea.ts";
 import { selectCliRuntimeExternalDependencies } from "./lib/cli-external-packages.ts";
 import { signWithJsign } from "./lib/windows-jsign.ts";
@@ -248,18 +248,6 @@ const removeNestedBinDirectories = Effect.fn("build-cli-archive.removeNestedBinD
     }
   },
 );
-
-const stageWebClient = Effect.fn("stageWebClient")(function* (source: string, target: string) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  yield* fs.copy(source, target);
-  const maps = (yield* fs.readDirectory(target, { recursive: true })).filter((entry) =>
-    entry.endsWith(".map"),
-  );
-  for (const entry of maps) {
-    yield* fs.remove(path.join(target, entry), { force: true });
-  }
-});
 
 /** Node links libatomic.so.1, which Ubuntu server and container images lack, so t3 carries its own. */
 const bundleLinuxLibatomic = Effect.fn("bundleLinuxLibatomic")(function* (input: {
@@ -584,12 +572,38 @@ const signWindowsExecutable = Effect.fn("signWindowsExecutable")(function* (
   yield* Effect.log("[cli-archive] Signed t3.exe (Azure Trusted Signing).");
 });
 
+export const stageCliArchiveFiles = Effect.fn("build-cli-archive.stageFiles")(function* (input: {
+  readonly builtExecutable: string;
+  readonly executableName: string;
+  readonly contentDir: string;
+  readonly resourceMonitorDir: string;
+  readonly relayClientDir: Option.Option<string>;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  yield* fs.copyFile(input.builtExecutable, path.join(input.contentDir, input.executableName));
+  yield* fs.copy(input.resourceMonitorDir, path.join(input.contentDir, "resource-monitor"));
+  if (Option.isSome(input.relayClientDir)) {
+    const executable = input.executableName.endsWith(".exe") ? "cloudflared.exe" : "cloudflared";
+    yield* requireInput(
+      path.join(input.relayClientDir.value, executable),
+      "Stage the relay client before building the archive.",
+    );
+    yield* requireInput(
+      path.join(input.relayClientDir.value, "LICENSE"),
+      "Include the relay client's license.",
+    );
+    yield* fs.copy(input.relayClientDir.value, path.join(input.contentDir, "relay-client"));
+  }
+});
+
 const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   readonly platform: BuildPlatform;
   readonly arch: BuildArch;
   readonly version: string;
   readonly outputDir: string;
   readonly resourceMonitorDir: Option.Option<string>;
+  readonly relayClientDir: Option.Option<string>;
   readonly notarySubmissionFile: Option.Option<string>;
 }) {
   const fs = yield* FileSystem.FileSystem;
@@ -612,7 +626,6 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
     : targetKey === hostKey
       ? path.join(serverDir, "dist-exe", executableName)
       : targetExecutable;
-  const webClient = path.join(serverDir, "dist/client");
   const resourceMonitorDir = Option.getOrElse(input.resourceMonitorDir, () =>
     path.join(serverDir, "dist/resource-monitor"),
   );
@@ -621,7 +634,6 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
     builtExecutable,
     `Run \`node apps/server/scripts/cli.ts build-exe${targetKey === hostKey ? "" : ` --target ${targetKey}`}\` first.`,
   );
-  yield* requireInput(path.join(webClient, "index.html"), "Run `vp run --filter t3 build` first.");
   yield* requireInput(
     resourceMonitorDir,
     "Build the resource monitor or pass --resource-monitor-dir.",
@@ -633,9 +645,13 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   yield* fs.makeDirectory(contentDir, { recursive: true });
 
   yield* Effect.log(`[cli-archive] Staging ${stem}...`);
-  yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
-  yield* stageWebClient(webClient, path.join(contentDir, "client"));
-  yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
+  yield* stageCliArchiveFiles({
+    builtExecutable,
+    executableName,
+    contentDir,
+    resourceMonitorDir,
+    relayClientDir: input.relayClientDir,
+  });
   yield* stageRuntimeExternals({
     repoRoot,
     stageDir: contentDir,
@@ -723,6 +739,10 @@ const command = Command.make(
       Flag.withDescription(
         "Directory laid out like dist/resource-monitor (defaults to apps/server/dist/resource-monitor).",
       ),
+      Flag.optional,
+    ),
+    relayClientDir: Flag.String("relay-client-dir").pipe(
+      Flag.withDescription("Bundle this verified relay-client directory beside the executable."),
       Flag.optional,
     ),
     notarySubmissionFile: Flag.String("notary-submission-file").pipe(

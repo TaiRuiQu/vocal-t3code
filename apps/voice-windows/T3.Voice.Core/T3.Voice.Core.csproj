@@ -6,6 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>T3.Voice.Core</AssemblyName>
     <RootNamespace>T3.Voice</RootNamespace>
+    <Version>0.2.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

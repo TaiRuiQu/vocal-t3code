@@ -53,26 +53,3 @@ export function defineProviderClient<const Definition extends ProviderClientDefi
 ): Definition {
   return definition;
 }
-
-export interface ProviderClientRegistry {
-  readonly definitions: ReadonlyArray<ProviderClientDefinition>;
-  readonly get: (
-    driverKind: ProviderDriverKind | undefined,
-  ) => ProviderClientDefinition | undefined;
-}
-
-export function makeProviderClientRegistry(
-  definitions: ReadonlyArray<ProviderClientDefinition>,
-): ProviderClientRegistry {
-  const byDriverKind = new Map<ProviderDriverKind, ProviderClientDefinition>();
-  for (const definition of definitions) {
-    if (byDriverKind.has(definition.driverKind)) {
-      throw new Error(`Provider driver '${definition.driverKind}' is defined more than once.`);
-    }
-    byDriverKind.set(definition.driverKind, definition);
-  }
-  return {
-    definitions,
-    get: (driverKind) => (driverKind === undefined ? undefined : byDriverKind.get(driverKind)),
-  };
-}

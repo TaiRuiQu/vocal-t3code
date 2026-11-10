@@ -13,7 +13,6 @@ import packageJson from "../package.json" with { type: "json" };
 import { acpMcpBridgeCommand, acpMcpCallCommand } from "./cli/acpMcpBridge.ts";
 import { authCommand } from "./cli/auth.ts";
 import { environmentCommand } from "./cli/environment.ts";
-import { appCommand } from "./cli/app.ts";
 import { browserCommand } from "./cli/browser.ts";
 import { pairCommand } from "./cli/pair.ts";
 import { hasCloudPublicConfig } from "./cloud/publicConfig.ts";
@@ -23,12 +22,7 @@ import { projectCommand } from "./cli/project.ts";
 import { threadCommand } from "./cli/thread.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
-import {
-  confirmCliInstall,
-  inTerminalForeground,
-  installCommand,
-  offerCliInstall,
-} from "./cli/install.ts";
+import { installCommand } from "./cli/install.ts";
 import { uninstallCommand } from "./cli/uninstall.ts";
 import { runServiceLauncherCli } from "./cli/serviceLauncher.ts";
 import { speechWorkerCommand } from "./cli/speechWorker.ts";
@@ -36,7 +30,6 @@ import { claudeHistoryCommand } from "./cli/claudeHistory.ts";
 import { sshHelperCommand } from "./cli/sshHelper.ts";
 import { serviceCommand } from "./cli/service.ts";
 import { servicePreflightCommand } from "./cli/servicePreflight.ts";
-import { themeCommand } from "./cli/theme.ts";
 import { traceCommand } from "./cli/trace.ts";
 import { triageCommand } from "./cli/triage.ts";
 import { connectCommand, statusCommand, upCommand } from "./cli/up.ts";
@@ -70,7 +63,7 @@ const connectUnavailableCommand = Command.make("connect", {
 export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
   Command.make("t3", { ...sharedServerCommandFlags }).pipe(
     Command.withDescription(
-      "Run T3 Code in this terminal and open it in your browser. To use it from your other devices, run `t3 up`.",
+      "Sign in to T3 Connect and print the HTTPS address to paste into T3 Voice. Keep this terminal open while connected.",
     ),
     Command.withHandler(runDefaultServerCommand),
     Command.withSubcommands([
@@ -84,7 +77,6 @@ export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
       acpMcpCallCommand,
       startCommand,
       serveCommand,
-      appCommand,
       pairCommand,
       authCommand,
       environmentCommand,
@@ -108,7 +100,6 @@ export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
       sshHelperCommand,
 
       servicePreflightCommand,
-      themeCommand,
       traceCommand,
       doctorCommand,
       policyCommand,
@@ -122,22 +113,7 @@ export const cli = makeCli();
 export function runCli() {
   extendConnectionAttemptTimeout();
   keepOutboundFetchOnHttp1();
-  offerCliInstall({
-    args: process.argv.slice(2),
-    // A child started over IPC (a service launcher) has no one to answer.
-    interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY) && process.send === undefined,
-    foreground: inTerminalForeground,
-    confirm: confirmCliInstall,
-  }).pipe(
-    // The offer handles its own errors; even an unexpected defect must not stop the command.
-    Effect.catchDefect(() => Effect.succeed(true)),
-    Effect.flatMap((proceed) =>
-      proceed
-        ? Command.run(cli, { version: packageJson.version })
-        : Effect.sync(() => {
-            process.exitCode = 130;
-          }),
-    ),
+  Command.run(cli, { version: packageJson.version }).pipe(
     Effect.scoped,
     Effect.provide(layerCliRuntime),
     NodeRuntime.runMain,

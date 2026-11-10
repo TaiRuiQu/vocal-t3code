@@ -1,24 +1,5 @@
 import { videoMimeType } from "./video.ts";
 
-const ICON_EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-  "application/zip": "zip",
-  "application/vnd.sqlite3": "sqlite",
-  "text/x-python": "py",
-  "text/javascript": "js",
-  "text/x-ruby": "rb",
-  "text/x-shellscript": "sh",
-};
-
-export function fileIconPathForMimeType(path: string, mimeType?: string): string {
-  const extension = ICON_EXTENSION_BY_MIME_TYPE[mimeType ?? ""];
-  return extension ? `file.${extension}` : path;
-}
-
 export const WORKSPACE_IMAGE_PREVIEW_EXTENSIONS = [
   ".avif",
   ".bmp",
@@ -80,7 +61,7 @@ export function mediaMimeTypeFromExtension(extension: string): string | null {
 }
 
 /** Classifies an authored media path or URL. Filesystem validation uses the literal extension. */
-export function mediaMimeType(path: string): string | null {
+function mediaMimeType(path: string): string | null {
   const trimmed = path.trim();
   const source = trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1) : trimmed;
   const dataMimeType = /^data:((?:image|video|audio)\/[\w.+-]+)[;,]/i.exec(source)?.[1];

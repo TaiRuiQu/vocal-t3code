@@ -36,7 +36,6 @@ import {
 } from "./command.ts";
 import {
   SshCommandError,
-  SshHttpBridgeError,
   SshInvalidTargetError,
   SshLaunchError,
   SshPairingError,
@@ -816,7 +815,7 @@ export function buildRemoteT3RunnerScript(input?: RemoteT3RunnerOptions): string
   );
 }
 
-export function buildRemoteNodeEnvScript(input?: RemoteT3RunnerOptions): string {
+function buildRemoteNodeEnvScript(input?: RemoteT3RunnerOptions): string {
   return stripTrailingNewlines(
     applyScriptPlaceholders(REMOTE_NODE_ENV_SCRIPT, {
       T3_NODE_ENGINE_RANGE: shellSingleQuote(input?.nodeEngineRange?.trim() || ""),
@@ -1060,36 +1059,6 @@ const waitForHttpReady = (input: {
       });
     },
   });
-
-function isLoopbackHostname(hostname: string): boolean {
-  const normalized = hostname
-    .trim()
-    .toLowerCase()
-    .replace(/^\[(.*)\]$/, "$1");
-  return normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost";
-}
-
-export const resolveLoopbackSshHttpBaseUrl = Effect.fn("ssh/tunnel.resolveLoopbackSshHttpBaseUrl")(
-  function* (rawHttpBaseUrl: unknown): Effect.fn.Return<string, SshHttpBridgeError> {
-    return yield* Effect.try({
-      try: () => {
-        if (typeof rawHttpBaseUrl !== "string" || rawHttpBaseUrl.trim().length === 0) {
-          throw new Error("Invalid SSH forwarded http base URL.");
-        }
-        const baseUrl = new URL(rawHttpBaseUrl);
-        if (!isLoopbackHostname(baseUrl.hostname)) {
-          throw new Error("SSH desktop bridge only supports loopback forwarded URLs.");
-        }
-        return baseUrl.toString();
-      },
-      catch: (cause) =>
-        new SshHttpBridgeError({
-          message: cause instanceof Error ? cause.message : "Invalid SSH forwarded http base URL.",
-          cause,
-        }),
-    });
-  },
-);
 
 const reserveLocalTunnelPort = Effect.fn("ssh/tunnel.reserveLocalTunnelPort")(function* () {
   const net = yield* NetService.NetService;

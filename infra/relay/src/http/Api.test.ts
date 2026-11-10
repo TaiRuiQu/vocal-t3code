@@ -40,7 +40,6 @@ import {
   RelayEnvironmentLinkUnavailableError,
   RelayEnvironmentLinkRequest,
 } from "@t3tools/contracts/relay";
-import { relayProtectedErrorMessage } from "@t3tools/client-runtime/relay";
 import { RELAY_MANAGED_TUNNEL_RECOVERY_TYP, signRelayJwt } from "@t3tools/shared/relayJwt";
 
 import {
@@ -183,10 +182,7 @@ describe("managed endpoint provisioning errors", () => {
         provisioningStage: "ensure-tunnel",
         traceId,
       });
-      const error = yield* decodeLinkUnavailableError(body);
-      expect(relayProtectedErrorMessage(error)).toBe(
-        "Relay cannot provision the managed endpoint (managed_endpoint_provisioning_failed). Failed stage: ensure-tunnel.",
-      );
+      yield* decodeLinkUnavailableError(body);
     }).pipe(Effect.scoped);
   });
 });

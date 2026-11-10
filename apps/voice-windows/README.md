@@ -24,20 +24,22 @@ powershell -NoProfile -File apps/voice-windows/Publish.ps1
 
 将 T3 Voice 源码和 `.github/workflows/release-voice.yml` 提交并推送后，每次推送新 tag
 都会在 Windows runner 上分别测试、打包 T3 Voice 和 T3 Code，并上传到同一个 GitHub Release。
-T3 Voice 仍独立运行；云电脑可下载同次发布的 T3 Code Windows x64 便携版。
+T3 Voice 仍独立运行；云电脑可下载同次发布的 T3 Code Windows x64 终端版。
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 在仓库的 Releases 中下载 `T3-Voice-win-x64.zip`，完整解压后运行
 `T3-Voice\T3.Voice.exe`。同时提供 `.sha256` 校验文件，Actions 页面也保留打包产物。
 该流程使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需额外配置发布密钥。
 
-云电脑下载 `T3-Code-<版本>-x64-portable.exe` 后双击即可运行，无需安装 Node 或 .NET。
-它已包含 T3 Connect relay client，登录并启用 T3 Connect 时无需再下载 cloudflared。
-便携版通过下载新版 EXE 更新。
+云电脑下载 `t3-<版本>-win32-x64.zip` 并完整解压，双击其中的 `t3.exe`。
+首次启动按终端提示登录 T3 Connect；后续启动自动复用授权。连接就绪后会显示
+`T3 Voice connection:` 和 HTTPS 地址，将该地址添加到 T3 Voice。保持终端运行；
+按 Ctrl+C 停止。压缩包包含原生运行时和 T3 Connect relay client，无需安装 Node、
+Electron 或另行下载 cloudflared。
 
 ## 首次设置
 
@@ -45,7 +47,7 @@ git push origin v0.1.0
 
 1. 选择本机 Codex 或 Claude Code；找不到命令时填写 `.exe` 完整路径。模型留空会使用对应 CLI 的默认值。切换提供商后沿用本地对话和记忆，各提供商分别保留自己的会话。
 2. 填写阿里云百炼 DashScope API Key、与其地域一致的 WebSocket 地址和实时 ASR 模型。默认是北京地域的 `fun-asr-realtime`。选择麦克风。
-3. 在每台 Windows / Ubuntu 云电脑上启动 T3 Code，登录它自己的 agent，并启用 T3 Connect。在助手中添加机器的 HTTPS 地址，在浏览器完成授权并选择完整权限。T3 Connect 授权会自动打开兼容的 `nightly.app.t3.codes` 页面，使用云电脑关联的 T3 Connect 账号登录即可。也支持已有的其他 HTTPS T3 访问地址。
+3. 在每台云电脑上安装并登录 OpenCode、Codex 或 Claude Code，然后启动 T3 Code 终端版。它会自动完成 T3 Connect 登录和连接配置。在助手中添加终端显示的 HTTPS 地址，在浏览器完成授权并选择完整权限，使用云电脑关联的同一个 T3 Connect 账号登录即可。
 4. 保存设置。主题可选跟随系统、浅色或深色，默认跟随系统；提示位置可选左上或右上。默认开机自启，可关闭。托盘双击打开任务和对话，右键打开设置或退出。
 
 ## 语音与任务

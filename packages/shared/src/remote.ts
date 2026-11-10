@@ -143,7 +143,7 @@ export interface HostedPairingRequest {
   readonly label: string;
 }
 
-export const getPairingTokenFromUrl = (url: URL): string | null => {
+const getPairingTokenFromUrl = (url: URL): string | null => {
   const hashToken = readHashParams(url).get(PAIRING_TOKEN_PARAM)?.trim() ?? "";
   if (hashToken.length > 0) {
     return hashToken;
@@ -153,25 +153,7 @@ export const getPairingTokenFromUrl = (url: URL): string | null => {
   return searchToken.length > 0 ? searchToken : null;
 };
 
-export const stripPairingTokenFromUrl = (url: URL): URL => {
-  const next = new URL(url.toString());
-  const hashParams = readHashParams(next);
-  if (hashParams.has(PAIRING_TOKEN_PARAM)) {
-    hashParams.delete(PAIRING_TOKEN_PARAM);
-    next.hash = hashParams.toString();
-  }
-  next.searchParams.delete(PAIRING_TOKEN_PARAM);
-  return next;
-};
-
-export const setPairingTokenOnUrl = (url: URL, credential: string): URL => {
-  const next = new URL(url.toString());
-  next.searchParams.delete(PAIRING_TOKEN_PARAM);
-  next.hash = new URLSearchParams([[PAIRING_TOKEN_PARAM, credential]]).toString();
-  return next;
-};
-
-export const readHostedPairingRequest = (url: URL): HostedPairingRequest | null => {
+const readHostedPairingRequest = (url: URL): HostedPairingRequest | null => {
   const host = url.searchParams.get(HOSTED_PAIRING_HOST_PARAM)?.trim() ?? "";
   const token = getPairingTokenFromUrl(url)?.trim() ?? "";
   const label = url.searchParams.get(HOSTED_PAIRING_LABEL_PARAM)?.trim() ?? "";

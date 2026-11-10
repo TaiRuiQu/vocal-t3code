@@ -80,10 +80,3 @@ export function clerkFrontendApiUrlFromPublishableKey(publishableKey: string): s
 export function clerkFrontendApiHostnameFromPublishableKey(publishableKey: string): string {
   return parseClerkFrontendApi(publishableKey).hostname;
 }
-
-export function relayClerkTokenOptions(template: string) {
-  return {
-    template,
-    skipCache: true,
-  } as const;
-}

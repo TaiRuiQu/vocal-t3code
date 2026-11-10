@@ -493,7 +493,7 @@ export function messageSearchTokens(query: string): {
  * Matches the query's words side by side as whole words, as typed, whatever
  * whitespace is between them and ignoring case; null for a single word.
  */
-export function messagePhrase(query: string): RegExp | null {
+function messagePhrase(query: string): RegExp | null {
   const { words } = messageSearchTokens(query);
   return words.length > 1
     ? new RegExp(
@@ -730,26 +730,6 @@ export interface SearchTextPart {
   readonly start: number;
 }
 
-/** `text` cut into plain and highlighted parts at sorted, non-overlapping `ranges`. */
-export function splitSearchText(
-  text: string,
-  ranges: ReadonlyArray<SearchRange>,
-): SearchTextPart[] {
-  const parts: SearchTextPart[] = [];
-  let cursor = 0;
-  for (const range of ranges) {
-    if (range.start > cursor) {
-      parts.push({ text: text.slice(cursor, range.start), highlighted: false, start: cursor });
-    }
-    parts.push({ text: text.slice(range.start, range.end), highlighted: true, start: range.start });
-    cursor = range.end;
-  }
-  if (cursor < text.length || parts.length === 0) {
-    parts.push({ text: text.slice(cursor), highlighted: false, start: cursor });
-  }
-  return parts;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Both activity recency and open counts halve every two weeks. */
 export const SEARCH_RECENCY_HALF_LIFE_MS = 14 * DAY_MS;
@@ -757,7 +737,7 @@ export const SEARCH_RECENCY_HALF_LIFE_MS = 14 * DAY_MS;
  * Opens closer together than this count once, so flipping between threads is
  * not frequency. Clients skip sending them.
  */
-export const THREAD_OPEN_DEDUPE_MS = 10 * 60 * 1000;
+const THREAD_OPEN_DEDUPE_MS = 10 * 60 * 1000;
 const THREAD_SEARCH_PICK_LIMIT = 3;
 /** Picked queries are stored this long; clients send no more. */
 const THREAD_SEARCH_PICK_MAX_LENGTH = 32;
@@ -1066,11 +1046,6 @@ export function scoreThreadSearch(
   };
 }
 
-/** When the user last used a thread: their last message or their last open. */
-export function threadRecentUse(thread: ThreadSearchSubject): number {
-  return Math.max(thread.activityAt ?? 0, thread.opens?.openedAt ?? 0);
-}
-
 /**
  * How strongly a thread's messages match among matches of one quality: a
  * thread that keeps using the word outweighs a recent passing mention, as
@@ -1127,12 +1102,6 @@ export function rankMessageMatches<
     )
     .map(({ match }) => match);
 }
-
-/** Palette limits shared by web and mobile. */
-export const PALETTE_THREAD_LIMIT = 20;
-export const PALETTE_MESSAGE_LIMIT = 10;
-/** Next to matching threads, other groups show only their best few rows. */
-export const PALETTE_SECONDARY_LIMIT = 3;
 
 // Whole words and prefixes share a class so "Compact" does not lift settings over "Compaction".
 function matchClass(quality: number): number {

@@ -100,7 +100,7 @@ public sealed class RemoteMcpClient : IRemoteMcpClient, IDisposable
                 {
                     protocolVersion = RequestedProtocol,
                     capabilities = new { },
-                    clientInfo = new { name = "t3-voice-windows", version = "0.1.0" },
+                    clientInfo = new { name = "t3-voice-windows", version = "0.2.0" },
                 }, false, deadline.Token).ConfigureAwait(false);
                 var protocol = RemoteHttp.RequiredString(initialized.Result, "protocolVersion");
                 if (protocol is not ("2025-03-26" or "2025-06-18" or "2025-11-25"))

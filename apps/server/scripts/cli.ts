@@ -9,7 +9,6 @@ import * as Path from "effect/Path";
 import { Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-import { DEVELOPMENT_ICON_OVERRIDES } from "../../../scripts/lib/brand-assets.ts";
 import { findEsmImportsOfExternalPackages } from "../../../scripts/lib/cli-executable-imports.ts";
 import { injectLinuxArm64Sea } from "../../../scripts/lib/linux-arm64-sea.ts";
 import rootPackageJson from "../../../package.json" with { type: "json" };
@@ -19,8 +18,6 @@ import {
   ServerCliBootstrapTooLargeError,
   ServerCliBuildAssetMissingError,
   ServerCliCommandExitError,
-  ServerCliDevelopmentIconSourceMissingError,
-  ServerCliDevelopmentIconTargetMissingError,
   ServerCliExecutableImportError,
 } from "./cliErrors.ts";
 
@@ -43,30 +40,6 @@ const runCommand = Effect.fn("runCommand")(function* (command: ChildProcess.Stan
   }
 });
 
-const applyDevelopmentIconOverrides = Effect.fn("applyDevelopmentIconOverrides")(function* (
-  repoRoot: string,
-  serverDir: string,
-) {
-  const path = yield* Path.Path;
-  const fs = yield* FileSystem.FileSystem;
-
-  for (const override of DEVELOPMENT_ICON_OVERRIDES) {
-    const sourcePath = path.join(repoRoot, override.sourceRelativePath);
-    const targetPath = path.join(serverDir, override.targetRelativePath);
-
-    if (!(yield* fs.exists(sourcePath))) {
-      return yield* new ServerCliDevelopmentIconSourceMissingError({ sourcePath });
-    }
-    if (!(yield* fs.exists(targetPath))) {
-      return yield* new ServerCliDevelopmentIconTargetMissingError({ targetPath });
-    }
-
-    yield* fs.copyFile(sourcePath, targetPath);
-  }
-
-  yield* Effect.log("[cli] Applied development icon overrides to dist/client");
-});
-
 const buildCmd = Command.make(
   "build",
   {
@@ -75,7 +48,6 @@ const buildCmd = Command.make(
   (config) =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      const fs = yield* FileSystem.FileSystem;
       const repoRoot = yield* RepoRoot;
       const serverDir = path.join(repoRoot, "apps/server");
 
@@ -88,19 +60,8 @@ const buildCmd = Command.make(
           shell: false,
         }),
       );
-
-      const webDist = path.join(repoRoot, "apps/web/dist");
-      const clientTarget = path.join(serverDir, "dist/client");
-
-      if (yield* fs.exists(webDist)) {
-        yield* fs.copy(webDist, clientTarget);
-        yield* applyDevelopmentIconOverrides(repoRoot, serverDir);
-        yield* Effect.log("[cli] Bundled web app into dist/client");
-      } else {
-        yield* Effect.logWarning("[cli] Web dist not found. Skipping client bundle.");
-      }
     }),
-).pipe(Command.withDescription("Build the server package (tsdown + bundle web client)."));
+).pipe(Command.withDescription("Build the terminal server package."));
 
 const buildExeCmd = Command.make(
   "build-exe",
@@ -176,7 +137,7 @@ const buildExeCmd = Command.make(
         });
       }
       yield* Effect.log(
-        "[cli] Built dist-exe/t3 (expects client/, resource-monitor/, and the runtime-external node_modules beside it; scripts/build-cli-archive.ts assembles that tree)",
+        "[cli] Built dist-exe/t3 (scripts/build-cli-archive.ts assembles its native dependencies and relay client)",
       );
     }),
 ).pipe(

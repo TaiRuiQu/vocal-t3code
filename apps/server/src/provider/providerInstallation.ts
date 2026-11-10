@@ -1,5 +1,4 @@
 import {
-  AntigravitySettings,
   CodexSettings,
   ProviderDriverKind,
   type ProviderInstallCancelInput,
@@ -14,22 +13,18 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
 import * as CodexInstallation from "./CodexInstallation.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import * as AntigravityInstallation from "./AntigravityInstallation.ts";
 import { deriveProviderInstanceConfigMap } from "./ProviderInstanceRegistryHydration.ts";
 import * as ProviderInstanceRegistry from "./ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "./ProviderRegistry.ts";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 
-const ANTIGRAVITY = ProviderDriverKind.make("antigravity");
 const hasBinaryPath = Schema.is(Schema.Struct({ binaryPath: Schema.String }));
 const decodeCodexSettings = Schema.decodeUnknownEffect(CodexSettings);
-const decodeAntigravitySettings = Schema.decodeUnknownEffect(AntigravitySettings);
 
 export class ProviderInstallation extends Context.Service<
   ProviderInstallation,
@@ -50,15 +45,12 @@ export class ProviderInstallation extends Context.Service<
 >()("t3/provider/providerInstallation") {}
 
 const make = Effect.fn("makeProviderInstallation")(function* () {
-  const antigravityInstallation = yield* AntigravityInstallation.AntigravityInstallation;
   const codexInstallation = yield* CodexInstallation.CodexInstallation;
   const instances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
   const providers = yield* ProviderRegistry.ProviderRegistry;
   const settings = yield* ServerSettings.ServerSettingsService;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const scope = yield* Effect.scope;
-  const accountCheckOperations = new Map<ProviderInstanceId, string>();
 
   const readEntries = Effect.fn("ProviderInstallation.readEntries")(function* (
     instanceId: ProviderInstanceId,
@@ -84,14 +76,14 @@ const make = Effect.fn("makeProviderInstallation")(function* () {
   ) {
     const instance = yield* instances.getInstance(instanceId);
     const isCodex = instance?.driverKind === ProviderDriverKind.make("codex");
-    if (instance?.driverKind !== ANTIGRAVITY && !isCodex) {
+    if (instance === undefined || !isCodex) {
       return yield* new ProviderSetupError({
         instanceId,
         operation,
         detail: "Managed installation is not available for this provider instance.",
       });
     }
-    const installation = isCodex ? codexInstallation : antigravityInstallation;
+    const installation = codexInstallation;
     const entries = yield* readEntries(instanceId, operation);
     const invalidConfig = () =>
       new ProviderSetupError({
@@ -99,21 +91,17 @@ const make = Effect.fn("makeProviderInstallation")(function* () {
         operation,
         detail: "The provider instance configuration is invalid.",
       });
-    const config = isCodex
-      ? yield* decodeCodexSettings(entries[instanceId]?.config ?? {}).pipe(
-          Effect.mapError(invalidConfig),
-        )
-      : yield* decodeAntigravitySettings(entries[instanceId]?.config ?? {}).pipe(
-          Effect.mapError(invalidConfig),
-        );
-    if (isCodex && (!("setupMode" in config) || config.setupMode !== "managed")) {
+    const config = yield* decodeCodexSettings(entries[instanceId]?.config ?? {}).pipe(
+      Effect.mapError(invalidConfig),
+    );
+    if (config.setupMode !== "managed") {
       return yield* new ProviderSetupError({
         instanceId,
         operation,
         detail: "Choose managed setup to install Codex in T3 Code.",
       });
     }
-    if (managedOnly && config.binaryPath && (!isCodex || config.binaryPath !== "codex")) {
+    if (managedOnly && config.binaryPath && config.binaryPath !== "codex") {
       return yield* new ProviderSetupError({
         instanceId,
         operation,
@@ -125,56 +113,12 @@ const make = Effect.fn("makeProviderInstallation")(function* () {
   });
 
   const failure =
-    (instanceId: ProviderInstanceId) =>
-    (
-      error:
-        | AntigravityInstallation.AntigravityInstallationError
-        | CodexInstallation.CodexInstallationError,
-    ) =>
+    (instanceId: ProviderInstanceId) => (error: CodexInstallation.CodexInstallationError) =>
       new ProviderSetupError({ instanceId, operation: error.operation, detail: error.detail });
 
   const start = Effect.fn("ProviderInstallation.start")(function* (input: ProviderSetupInput) {
-    const { installation, driver } = yield* requireInstance(input.instanceId, "install", true);
-    const started = yield* installation.start.pipe(Effect.mapError(failure(input.instanceId)));
-    if (
-      driver === ANTIGRAVITY &&
-      started.operationId !== null &&
-      accountCheckOperations.get(input.instanceId) !== started.operationId
-    ) {
-      accountCheckOperations.set(input.instanceId, started.operationId);
-      // Installation outlives the request and may finish while every client is disconnected.
-      yield* installation.changes.pipe(
-        Stream.filter(
-          (state) =>
-            state.operationId !== started.operationId ||
-            state.phase === "succeeded" ||
-            state.phase === "failed" ||
-            state.phase === "cancelled",
-        ),
-        Stream.runHead,
-        Effect.flatMap(
-          Effect.fnUntraced(function* (result) {
-            if (
-              Option.isNone(result) ||
-              result.value.operationId !== started.operationId ||
-              result.value.phase !== "succeeded"
-            )
-              return;
-            const instance = yield* instances.getInstance(input.instanceId);
-            if (
-              instance?.driverKind !== ANTIGRAVITY ||
-              !instance.enabled ||
-              !instance.refreshModels
-            )
-              return;
-            yield* instance.refreshModels().pipe(Effect.ignore({ log: true }));
-            yield* providers.refreshInstance(input.instanceId);
-          }),
-        ),
-        Effect.forkIn(scope),
-      );
-    }
-    return started;
+    const { installation } = yield* requireInstance(input.instanceId, "install", true);
+    return yield* installation.start.pipe(Effect.mapError(failure(input.instanceId)));
   });
 
   const cancel = Effect.fn("ProviderInstallation.cancel")(function* (

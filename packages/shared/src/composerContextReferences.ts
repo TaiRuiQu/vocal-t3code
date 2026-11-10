@@ -68,7 +68,7 @@ export function parseComposerContextHref(
   return { kind, contextId: contextId as ComposerContextId };
 }
 
-export function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind): string {
+function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind): string {
   const normalized = label
     .replace(/[[\]\\\r\n]/g, " ")
     .replace(/\s+/g, " ")
@@ -209,7 +209,7 @@ export function isImageReferencesOnly(text: string): boolean {
   );
 }
 
-export function replaceComposerContextReferences(
+function replaceComposerContextReferences(
   text: string,
   replace: (occurrence: ComposerContextReferenceOccurrence) => string,
 ): string {

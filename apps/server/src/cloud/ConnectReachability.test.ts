@@ -13,6 +13,7 @@ import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
+import * as TestConsole from "effect/testing/TestConsole";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 import { vi } from "vite-plus/test";
@@ -195,8 +196,14 @@ describe("ConnectReachability stale connector recovery", () => {
         expect(yield* Queue.take(restarts)).toBe(connected.pid);
 
         // Reaching the endpoint resets the wait, and a 530 for a broken DNS record is left alone.
+        expect((yield* TestConsole.logLines).join("\n")).not.toContain("https://env.example.test/");
         status = 200;
         expect(yield* reachability.check).toMatchObject({ status: "reachable" });
+        const output = (yield* TestConsole.logLines).join("\n");
+        expect(output).toContain("https://env.example.test/");
+        expect(output).not.toContain("token=");
+        yield* reachability.check;
+        expect((yield* TestConsole.logLines).join("\n")).toBe(output);
         status = 530;
         body = { cloudflareError: 1016 };
         expect(yield* reachability.check).toMatchObject({ cause: "unexpected_response" });
@@ -207,7 +214,7 @@ describe("ConnectReachability stale connector recovery", () => {
         yield* reachability.check;
         yield* TestClock.adjust(Duration.minutes(2));
         expect(yield* Queue.take(restarts)).toBe(connected.pid);
-      }).pipe(Effect.provide(layer));
+      }).pipe(Effect.provide(layer.pipe(Layer.provideMerge(Layer.fresh(TestConsole.layer)))));
     }),
   );
 

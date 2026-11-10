@@ -30,6 +30,7 @@ squashfs-root/
 /audits/
 dist-electron/
 apps/desktop/resources/relay-client/
+apps/server/resources/relay-client/
 .electron-runtime/
 .showcase/
 apps/mobile/.showcase/

@@ -106,7 +106,7 @@ const USE_PROMPT_BY_KIND: Record<CodexArtifactTemplateKind, (skill: string) => s
   slack: (skill) => `Draft a Slack message using this ${skill} about…`,
 };
 
-export function codexArtifactTemplateUsePrompt(template: CodexArtifactTemplate): string {
+function codexArtifactTemplateUsePrompt(template: CodexArtifactTemplate): string {
   return USE_PROMPT_BY_KIND[template.artifactKind](`$${template.skillName}`);
 }
 

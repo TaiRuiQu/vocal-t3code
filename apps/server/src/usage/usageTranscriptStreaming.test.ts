@@ -69,32 +69,6 @@ const codex = [
     },
   },
 ];
-const grok = {
-  timestamp: 1785578400,
-  params: {
-    sessionId: "s1",
-    _meta: { agentTimestampMs: 1785578400123 },
-    update: {
-      sessionUpdate: "turn_completed",
-      prompt_id: "p1",
-      usage: {
-        inputTokens: 100,
-        outputTokens: 99,
-        costUsdTicks: 2500000000,
-        modelUsage: {
-          "grok-4.5-build": {
-            inputTokens: 100,
-            outputTokens: 99,
-            cachedReadTokens: 20,
-            cacheCreationTokens: 5,
-            reasoningTokens: 10,
-          },
-        },
-      },
-    },
-  },
-};
-
 async function scan(
   lines: readonly unknown[],
   provider: keyof typeof TEST_FORMATS,
@@ -108,96 +82,6 @@ async function scan(
 }
 
 describe("large usage records", () => {
-  it("streams Muse completion envelopes and resumes a partial appended event", async () => {
-    const entry = {
-      schema_version: 1,
-      record_type: "event",
-      payload_type: "runtime.session",
-      payload_schema_version: 3,
-      id: "envelope-1",
-      recorded_at: 1_785_578_400_123_456,
-      stream: { kind: "session", id: "parent" },
-      payload: {
-        source_run_record_id: "inference-1",
-        event: {
-          kind: "automated_review_completed",
-          model: { model_id: "review-model" },
-          usage: {
-            input_tokens: 100,
-            cached_input_tokens: 60,
-            output_tokens: 20,
-            reasoning_tokens: 8,
-          },
-        },
-      },
-    };
-    const small = await scan([entry], "muse", "small-muse");
-    expect(small.records[0]?.totals).toMatchObject({
-      uncachedInputTokens: 40,
-      cachedInputTokens: 60,
-    });
-    const path = NodePath.join(dir, "large-muse.jsonl");
-    await NodeFSP.writeFile(path, JSON.stringify({ ...entry, discarded: { content } }) + "\n");
-    const large = await readTranscriptRecords(path, "muse");
-    expect(large?.records).toEqual(small.records);
-    const appended = JSON.stringify({
-      ...entry,
-      id: "envelope-2",
-      payload: { ...entry.payload, source_run_record_id: "inference-2" },
-    });
-    await NodeFSP.appendFile(path, appended.slice(0, -7));
-    const partial = await readTranscriptRecords(path, "muse", large!.position);
-    expect(partial?.records).toEqual([]);
-    await NodeFSP.appendFile(path, appended.slice(-7) + "\n");
-    const completed = await readTranscriptRecords(path, "muse", partial!.position);
-    expect(completed?.records).toHaveLength(1);
-    expect(completed?.records[0]?.dedupeKey).not.toBe(large?.records[0]?.dedupeKey);
-    expect(completed?.records[0]?.totals).toEqual(small.records[0]?.totals);
-  });
-
-  it("keeps Pi model, cost, and fork identity after large assistant content", async () => {
-    const entry = {
-      type: "message",
-      id: "a123abcd",
-      timestamp,
-      message: {
-        role: "assistant",
-        provider: "anthropic",
-        model: "requested",
-        responseModel: "actual",
-        content: [{ type: "text", text: content }],
-        usage: {
-          input: 100,
-          output: 99,
-          cacheRead: 20,
-          cacheWrite: 5,
-          reasoning: 10,
-          cost: { total: 0.25 },
-        },
-      },
-    };
-    const result = await scan([{ type: "session", id: "pi-session" }, entry], "pi");
-    expect(result.records).toEqual([
-      {
-        provider: "pi",
-        model: "anthropic/actual",
-        rateModel: "actual",
-        sessionId: "pi-session",
-        timestampMs: Date.parse(timestamp),
-        totals: {
-          uncachedInputTokens: 100,
-          outputTokens: 99,
-          cachedInputTokens: 20,
-          cacheCreationTokens: 5,
-          reasoningTokens: 10,
-        },
-        reportedCostUsd: 0.25,
-        speed: "standard",
-        dedupeKey: JSON.stringify(["pi", entry.id, timestamp, "anthropic/actual"]),
-      },
-    ]);
-  });
-
   it("keeps usage after large Claude tool input, including fast-mode cost and dedupe metadata", async () => {
     const result = await scan([claude()], "claude");
     expect(result.records).toEqual([
@@ -220,15 +104,13 @@ describe("large usage records", () => {
     ]);
   });
 
-  it.each(["claude", "codex", "grok"] as const)(
+  it.each(["claude", "codex"] as const)(
     "matches ordinary %s records with large irrelevant fields in either order",
     async (provider) => {
       const small =
         provider === "codex"
           ? codex
-          : provider === "grok"
-            ? [grok]
-            : [{ ...claude(), message: { ...claude().message, content: [] } }];
+          : [{ ...claude(), message: { ...claude().message, content: [] } }];
       const expected = await scan(small, provider, "small");
       for (const first of [true, false]) {
         const large = small.map((record) =>
@@ -240,24 +122,6 @@ describe("large usage records", () => {
       }
     },
   );
-
-  it("preserves Grok model allocation, precise timestamp and prompt identity", async () => {
-    const result = await scan([{ padding: content, ...grok }], "grok");
-    expect(result.records[0]).toMatchObject({
-      timestampMs: 1785578400123,
-      model: "grok-4.5-build",
-      sessionId: "s1",
-      totals: {
-        uncachedInputTokens: 75,
-        cachedInputTokens: 20,
-        cacheCreationTokens: 5,
-        outputTokens: 99,
-        reasoningTokens: 10,
-      },
-      dedupeKey: "s1:p1:grok-4.5-build",
-      reportedCostUsd: 0.25,
-    });
-  });
 
   it("does not count usage-looking text or nested objects inside tool output", async () => {
     const result = await scan(

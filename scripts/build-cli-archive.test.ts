@@ -9,7 +9,11 @@ import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-import { awaitCliNotarization, signMacArchiveContents } from "./build-cli-archive.ts";
+import {
+  awaitCliNotarization,
+  signMacArchiveContents,
+  stageCliArchiveFiles,
+} from "./build-cli-archive.ts";
 
 const signedEnv = {
   T3CODE_CLI_MAC_SIGN_IDENTITY: "Developer ID Application: Test (TEAM)",
@@ -73,6 +77,48 @@ const notarySubcommands = (calls: ReadonlyArray<ReadonlyArray<string>>) =>
   calls.filter((argv) => argv[1] === "notarytool").map((argv) => argv.slice(2));
 
 it.layer(NodeServices.layer)("build-cli-archive notarization", (it) => {
+  it.effect("stages a terminal runtime with its relay client and no web assets", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-cli-headless-" });
+      const builtExecutable = path.join(root, "t3.exe");
+      const contentDir = path.join(root, "content");
+      const resourceMonitorDir = path.join(root, "monitor");
+      const relayClientDir = path.join(root, "relay");
+      for (const directory of [contentDir, resourceMonitorDir, relayClientDir]) {
+        yield* fs.makeDirectory(directory);
+      }
+      yield* fs.writeFileString(builtExecutable, "terminal executable");
+      yield* fs.writeFileString(
+        path.join(resourceMonitorDir, "t3-resource-monitor.exe"),
+        "monitor",
+      );
+      yield* fs.writeFileString(path.join(relayClientDir, "cloudflared.exe"), "verified relay");
+      yield* fs.writeFileString(path.join(relayClientDir, "LICENSE"), "relay license");
+      const input = {
+        builtExecutable,
+        executableName: "t3.exe",
+        contentDir,
+        resourceMonitorDir,
+        relayClientDir: Option.some(relayClientDir),
+      };
+      yield* stageCliArchiveFiles(input);
+      assert.deepEqual((yield* fs.readDirectory(contentDir)).sort(), [
+        "relay-client",
+        "resource-monitor",
+        "t3.exe",
+      ]);
+      assert.equal(
+        yield* fs.readFileString(path.join(contentDir, "relay-client/cloudflared.exe")),
+        "verified relay",
+      );
+      yield* fs.remove(path.join(relayClientDir, "LICENSE"));
+      const error = yield* stageCliArchiveFiles(input).pipe(Effect.flip);
+      assert.equal(error._tag, "CliArchiveInputMissingError");
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("records a deferred submission without waiting, then gates on Accepted", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;

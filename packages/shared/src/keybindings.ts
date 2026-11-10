@@ -10,41 +10,29 @@ import {
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 
-export {
-  EVENT_CODE_SHORTCUT_KEYS,
-  isMacPlatform,
-  matchesKeybindingShortcut,
-  matchesKeybindingShortcutModifiers,
-  normalizeEventKey,
-  resolveEventKeys,
-  shortcutKeyFromEvent,
-  type ShortcutEventLike,
-  type ShortcutModifierStateLike,
-} from "./keybindingMatching.ts";
-
-export const US_SHIFTED_TO_UNSHIFTED_KEYS: ReadonlyMap<string, string> = new Map([
-  ["!", "1"],
-  ["@", "2"],
-  ["#", "3"],
-  ["$", "4"],
-  ["%", "5"],
-  ["^", "6"],
-  ["&", "7"],
-  ["*", "8"],
-  ["(", "9"],
-  [")", "0"],
-  ["~", "`"],
-  ["_", "-"],
-  ["+", "="],
-  ["{", "["],
-  ["}", "]"],
-  ["|", "\\"],
-  [":", ";"],
-  ['"', "'"],
-  ["<", ","],
-  [">", "."],
-  ["?", "/"],
-]);
+export const EVENT_CODE_SHORTCUT_KEYS: Readonly<Record<string, string>> = {
+  Backquote: "`",
+  Backslash: "\\",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Digit0: "0",
+  Digit1: "1",
+  Digit2: "2",
+  Digit3: "3",
+  Digit4: "4",
+  Digit5: "5",
+  Digit6: "6",
+  Digit7: "7",
+  Digit8: "8",
+  Digit9: "9",
+  Equal: "=",
+  Minus: "-",
+  Period: ".",
+  Quote: "'",
+  Semicolon: ";",
+  Slash: "/",
+};
 
 type WhenToken =
   | { type: "identifier"; value: string }
@@ -386,7 +374,7 @@ export function compileResolvedKeybindingsConfig(
   return compiled.slice(-MAX_KEYBINDINGS_COUNT);
 }
 
-export const DEFAULT_RESOLVED_KEYBINDINGS = compileResolvedKeybindingsConfig(DEFAULT_KEYBINDINGS);
+const DEFAULT_RESOLVED_KEYBINDINGS = compileResolvedKeybindingsConfig(DEFAULT_KEYBINDINGS);
 
 export function mergeWithDefaultKeybindings(
   custom: ResolvedKeybindingsConfig,

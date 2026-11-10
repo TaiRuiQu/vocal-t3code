@@ -27,7 +27,7 @@ public sealed class CodexDriver : IProviderDriver
             onEvent(new ProviderEvent("status", "正在连接本机 Codex…"));
             await rpc.RequestAsync("initialize", new
             {
-                clientInfo = new { name = "t3_voice_windows", title = "T3 Voice", version = "0.1.0" },
+                clientInfo = new { name = "t3_voice_windows", title = "T3 Voice", version = "0.2.0" },
                 capabilities = new { experimentalApi = false }
             }, cancellationToken);
             await rpc.NotifyAsync("initialized", new { }, cancellationToken);

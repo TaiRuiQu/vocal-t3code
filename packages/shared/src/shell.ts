@@ -132,7 +132,7 @@ function trimNonEmpty(value: string | null | undefined): string | undefined {
   return trimmed && trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function readUserLoginShell(): string | undefined {
+function readUserLoginShell(): string | undefined {
   try {
     return trimNonEmpty(NodeOS.userInfo().shell);
   } catch {
@@ -208,10 +208,7 @@ function envCaptureEnd(name: string): string {
   return `__T3CODE_ENV_${name}_END__`;
 }
 
-export function buildEnvironmentCaptureCommand(
-  shell: string,
-  names: ReadonlyArray<string>,
-): string {
+function buildEnvironmentCaptureCommand(shell: string, names: ReadonlyArray<string>): string {
   const executableName = NodePath.basename(shell).toLowerCase();
   const isNushell = executableName.startsWith("nu");
 

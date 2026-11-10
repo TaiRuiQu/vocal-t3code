@@ -68,15 +68,14 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-  desktop:
-    name: Build T3 Code Windows x64 portable
+  host:
+    name: Build T3 Code terminal host Windows x64
     runs-on: windows-2025
     timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
     steps:
-      # checkout's credential cleanup fails on orphaned .repos gitlinks.
       - name: Checkout T3 Code
         shell: bash
         env:
@@ -93,7 +92,7 @@ jobs:
       - name: Setup dependencies
         uses: ./.github/actions/setup-ci-deps
         with:
-          install-args: --filter=@t3tools/desktop... --filter=t3... --filter=@t3tools/scripts...
+          install-args: --filter=t3... --filter=@t3tools/scripts...
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -110,7 +109,7 @@ jobs:
       - name: Enable T3 Connect public configuration
         run: Copy-Item -LiteralPath .env.example -Destination .env
 
-      - name: Resolve desktop version
+      - name: Resolve host version
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -120,76 +119,52 @@ jobs:
             $version = "0.0.0-preview.$env:GITHUB_RUN_NUMBER"
           }
           "version=$version" >> $env:GITHUB_OUTPUT
+          $manifest = Get-Content apps/server/package.json -Raw | ConvertFrom-Json
+          $manifest.version = $version
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content apps/server/package.json -Encoding utf8
 
-      - name: Install Electron runtime
-        run: node apps/desktop/scripts/ensure-electron-runtime.mjs
-
-      - name: Test desktop startup configuration
-        working-directory: apps/desktop
-        run: vp test run src/backend/DesktopBackendConfiguration.test.ts
-
-      - name: Test desktop packaging
-        working-directory: scripts
-        run: vp test run --config ../vite.config.ts build-desktop-artifact.test.ts -t 'omits update feeds'
+      - name: Test terminal archive packaging
+        run: vp test run scripts/build-cli-archive.test.ts
 
       - name: Bundle verified relay client
         run: node scripts/stage-windows-relay-client.ts
 
       - name: Build resource monitor
-        run: cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml --target x86_64-pc-windows-msvc
-
-      - name: Build portable EXE
-        env:
-          T3CODE_DESKTOP_VERSION: ${{ steps.version.outputs.version }}
-          T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR: "true"
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: vp run dist:desktop:artifact --platform win --target portable --arch x64 --output-dir release/t3-code --verbose
-
-      - name: Verify relay client and packaged startup
         run: |
-          $appDirectory = 'release/t3-code/win-unpacked'
-          $relayClient = Join-Path $appDirectory 'resources/relay-client/cloudflared.exe'
-          & $relayClient version
-          if ($LASTEXITCODE -ne 0) { throw 'The bundled relay client could not start.' }
-          $expected = (Get-FileHash -LiteralPath apps/desktop/resources/relay-client/cloudflared.exe -Algorithm SHA256).Hash
-          if ((Get-FileHash -LiteralPath $relayClient -Algorithm SHA256).Hash -ne $expected) {
-            throw 'The packaged relay client checksum changed.'
-          }
-          $executable = @(Get-ChildItem -LiteralPath $appDirectory -Filter 'T3 Code*.exe')
-          if ($executable.Count -ne 1) { throw 'Expected one packaged T3 Code executable.' }
-          $appExecutable = $executable[0].FullName
-          node scripts/smoke-desktop-app.ts --executable $appExecutable --artifacts-dir release/t3-code/launch-check
-          if ($LASTEXITCODE -ne 0) { throw 'The packaged T3 Code application could not start.' }
+          cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { throw 'The resource monitor could not be built.' }
+          New-Item -ItemType Directory -Force apps/server/dist/resource-monitor | Out-Null
+          Copy-Item native/resource-monitor/target/x86_64-pc-windows-msvc/release/t3-resource-monitor.exe apps/server/dist/resource-monitor/
 
-      - name: Checksum portable EXE
+      - name: Build terminal executable
+        run: vp run build:exe --verbose
+
+      - name: Package terminal host
         run: |
-          $archives = @(Get-ChildItem -LiteralPath release/t3-code -Filter '*-portable.exe')
-          if ($archives.Count -ne 1) { throw 'Expected one portable EXE.' }
-          $archive = $archives[0]
+          node scripts/build-cli-archive.ts --platform win --arch x64 --version '${{ steps.version.outputs.version }}' --output-dir release/t3-code --relay-client-dir apps/server/resources/relay-client
+          if ($LASTEXITCODE -ne 0) { throw 'The terminal host archive could not be built.' }
+
+      - name: Verify terminal archive
+        run: |
+          $archive = Get-Item 'release/t3-code/t3-${{ steps.version.outputs.version }}-win32-x64.zip'
+          node scripts/smoke-cli-archive.ts --archive $archive.FullName --expect-version '${{ steps.version.outputs.version }}'
+          if ($LASTEXITCODE -ne 0) { throw 'The terminal host archive could not start.' }
           $hash = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($archive.Name)" | Set-Content -LiteralPath "$($archive.FullName).sha256" -Encoding utf8
 
-      - name: Upload portable EXE
+      - name: Upload terminal archive
         uses: actions/upload-artifact@v7
         with:
-          name: T3-Code-win-x64-portable
+          name: T3-Code-win-x64-terminal
           path: |
-            release/t3-code/*-portable.exe
-            release/t3-code/*-portable.exe.sha256
+            release/t3-code/*.zip
+            release/t3-code/*.zip.sha256
           if-no-files-found: error
           compression-level: 0
 
-      - name: Upload startup failure evidence
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: T3-Code-startup-failure
-          path: release/t3-code/launch-check
-          if-no-files-found: ignore
-
   release:
     name: Publish Windows release
-    needs: [voice, desktop]
+    needs: [voice, host]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -203,7 +178,7 @@ jobs:
       - name: Download T3 Code
         uses: actions/download-artifact@v8
         with:
-          name: T3-Code-win-x64-portable
+          name: T3-Code-win-x64-terminal
           path: release
 
       - name: Publish GitHub Release
@@ -211,17 +186,23 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: T3 Voice and T3 Code ${{ github.ref_name }}
+          make_latest: true
           body: |
             T3 Voice for Windows 11 x64.
 
             下载并完整解压 `T3-Voice-win-x64.zip`，运行其中的 `T3-Voice/T3.Voice.exe`。
             包含 .NET 和 Windows App SDK 运行文件。
 
-            T3 Code Windows x64 便携版为 `T3-Code-*-x64-portable.exe`。
-            双击即可运行，已内置 T3 Connect relay client，无需首次下载 cloudflared。
+            T3 Code Windows x64 终端版为 `t3-*-win32-x64.zip`。
+            完整解压后运行 `t3.exe`，按终端提示登录，复制连接链接到 T3 Voice。
+            已内置 Node 和 T3 Connect relay client，无需安装 Electron 或浏览器界面。
+
+            本版仅保留 OpenCode、Codex、Claude Code，删除其他 provider 和本地前端。
+            首次启动提示 T3 Connect 登录，后续启动复用授权；连接就绪后显示 HTTPS 地址。
+            保持终端运行；按 Ctrl+C 停止。首次在 T3 Voice 添加机器时，使用同一个 T3 Connect 账号完成授权。
           files: |
             release/T3-Voice-win-x64.zip
             release/T3-Voice-win-x64.zip.sha256
-            release/T3-Code-*-x64-portable.exe
-            release/T3-Code-*-x64-portable.exe.sha256
+            release/t3-*-win32-x64.zip
+            release/t3-*-win32-x64.zip.sha256
           fail_on_unmatched_files: true

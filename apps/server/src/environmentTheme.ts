@@ -35,7 +35,7 @@ const THEME_FILE_SUFFIX = ".json";
 
 const MAX_THEME_FILES = 32;
 /** Shared with publishing so it cannot accept files the watcher skips. */
-export const MAX_THEME_FILE_BYTES = 32 * 1024;
+const MAX_THEME_FILE_BYTES = 32 * 1024;
 const MAX_THEME_TOTAL_BYTES = 192 * 1024;
 
 interface PublishedThemes {
@@ -55,7 +55,7 @@ export class EnvironmentThemeService extends Context.Service<
 
 /** Validates and reads one handle; rejects symlinked files, allows symlinked directories.
  * Uses non-blocking opens against FIFOs; Windows lacks these flags and checks symlinks with lstat. */
-export const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
+const readThemeFileGuarded = (filePath: string, maxBytes: number): string | null => {
   let fd: number;
   try {
     if (NodeFS.constants.O_NOFOLLOW === undefined && NodeFS.lstatSync(filePath).isSymbolicLink()) {
@@ -89,7 +89,7 @@ export const readThemeFileGuarded = (filePath: string, maxBytes: number): string
   }
 };
 
-export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
+const readPublishedThemes = Effect.fn(function* (themesDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const entries = yield* fs
     .readDirectory(themesDir)

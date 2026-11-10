@@ -51,15 +51,3 @@ export function threadSearchPullRequests(thread: {
   }
   return thread.linkedPullRequest ? branch.concat(entry(thread.linkedPullRequest, null)) : branch;
 }
-
-export function threadPullRequestSearchTerms(thread: {
-  readonly pullRequests?: ReadonlyArray<ThreadPullRequestLink> | undefined;
-  readonly linkedPullRequest?: ThreadLinkedPullRequest | null | undefined;
-  readonly branchPullRequest?: ThreadLinkedPullRequest | null | undefined;
-}): string[] {
-  return threadSearchPullRequests(thread).flatMap((pullRequest) => [
-    `#${pullRequest.number}`,
-    ...pullRequest.references,
-    ...(pullRequest.title ? [pullRequest.title] : []),
-  ]);
-}

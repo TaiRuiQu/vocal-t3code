@@ -35,7 +35,7 @@ const CLOUDFLARED_PATH_ENV_NAME = "T3CODE_CLOUDFLARED_PATH";
 
 const CLOUDFLARED_DOWNLOAD_TIMEOUT = "10 minutes";
 
-export type RelayClientExecutableSource = "override" | "managed" | "path";
+export type RelayClientExecutableSource = "override" | "bundled" | "managed" | "path";
 
 export type RelayClientStatus =
   | {
@@ -403,6 +403,14 @@ export const makeCloudflaredRelayClient = Effect.fn("cloudflared.make")(function
         { executablePath: config.executableOverride.value },
       );
       return missingStatus;
+    }
+    if (yield* HostProcess.IsExecutable) {
+      const executable = yield* HostProcess.ExecutablePath;
+      const bundled = yield* compatibleCandidate(
+        path.join(path.dirname(executable), "relay-client", executableFileName(platform)),
+        "bundled",
+      );
+      if (bundled) return bundled;
     }
     const pinned = yield* compatibleCandidate(managedPath, "managed");
     if (pinned) return pinned;

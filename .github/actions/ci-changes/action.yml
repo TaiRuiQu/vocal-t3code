@@ -5,22 +5,16 @@ outputs:
     value: ${{ steps.detect.outputs.typecheck }}
   build:
     value: ${{ steps.detect.outputs.build }}
-  desktop_launch:
-    value: ${{ steps.detect.outputs.desktop_launch }}
   test:
     value: ${{ steps.detect.outputs.test }}
   test_packages:
     value: ${{ steps.detect.outputs.test_packages }}
-  test_web:
-    value: ${{ steps.detect.outputs.test_web }}
   test_server:
     value: ${{ steps.detect.outputs.test_server }}
   rust:
     value: ${{ steps.detect.outputs.rust }}
-  release_smoke:
-    value: ${{ steps.detect.outputs.release_smoke }}
-  mobile_native:
-    value: ${{ steps.detect.outputs.mobile_native }}
+  voice:
+    value: ${{ steps.detect.outputs.voice }}
 runs:
   using: composite
   steps:

@@ -100,13 +100,32 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   const bundledLibatomic = path.join(contentDir, "lib/libatomic.so.1");
   for (const required of [
     executable,
-    path.join(contentDir, "client/index.html"),
     ...(platform === "linux" ? [bundledLibatomic, `${bundledLibatomic}.LICENSE`] : []),
   ]) {
     if (!(yield* fs.exists(required))) {
       return yield* new CliArchiveSmokeError({
         step: "checking the archive layout",
         detail: `missing ${path.relative(contentDir, required)}`,
+      });
+    }
+  }
+  if (yield* fs.exists(path.join(contentDir, "client"))) {
+    return yield* new CliArchiveSmokeError({
+      step: "checking the archive layout",
+      detail: "terminal archives must not include a web client",
+    });
+  }
+  const relayClient = path.join(
+    contentDir,
+    "relay-client",
+    platform === "win32" ? "cloudflared.exe" : "cloudflared",
+  );
+  if (yield* fs.exists(relayClient)) {
+    const relay = yield* runExecutable(relayClient, ["version"], contentDir);
+    if (relay.exitCode !== 0) {
+      return yield* new CliArchiveSmokeError({
+        step: "running the bundled relay client",
+        detail: `exit ${String(relay.exitCode)}\n${relay.stdout}${relay.stderr}`,
       });
     }
   }
@@ -173,11 +192,13 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   );
   const httpClient = yield* HttpClient.HttpClient;
   // Probes can hang during server initialization; bound each request as SSH readiness does.
-  const probe = httpClient.execute(HttpClientRequest.get(`http://127.0.0.1:${String(port)}/`)).pipe(
-    Effect.map((response) => response.status === 200),
-    Effect.timeout(Duration.seconds(2)),
-    Effect.orElseSucceed(() => false),
-  );
+  const probe = httpClient
+    .execute(HttpClientRequest.get(`http://127.0.0.1:${String(port)}/.well-known/t3/environment`))
+    .pipe(
+      Effect.map((response) => response.status === 200),
+      Effect.timeout(Duration.seconds(2)),
+      Effect.orElseSucceed(() => false),
+    );
   const pollUntilReady = Effect.gen(function* () {
     while (!(yield* probe)) {
       yield* Effect.sleep(Duration.millis(250));
@@ -197,7 +218,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   if (!ready) {
     return yield* new CliArchiveSmokeError({
       step: "serving from the extracted archive",
-      detail: `no 200 from / within 30s\n${stdout}${stderr}`,
+      detail: `no environment descriptor within 30s\n${stdout}${stderr}`,
     });
   }
   yield* Effect.log(

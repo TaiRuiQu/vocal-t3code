@@ -11,6 +11,8 @@ import { awaitLauncherLoss } from "../launcherWatch.ts";
 import * as DatabaseMaintenance from "../persistence/DatabaseMaintenance.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as AutomaticPort from "./automaticPort.ts";
+import { linkEnvironmentForConnect, requireConnectAllowed, runCloudCommand } from "./connect.ts";
+import { hasCloudPublicConfig } from "../cloud/publicConfig.ts";
 import { type CliServerFlags, resolveServerConfig, sharedServerCommandFlags } from "./config.ts";
 
 const encodeCommand = Schema.encodeEffect(Schema.fromJsonString(Schema.String));
@@ -28,6 +30,7 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
     readonly startupPresentation?: ServerConfig.StartupPresentation;
     readonly forceAutoBootstrapProjectFromCwd?: boolean;
     readonly rejectRunningServer?: boolean;
+    readonly connectOnStartup?: boolean;
   },
 ) {
   // Before config resolution, which claims a port and creates directories.
@@ -35,6 +38,22 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   const logLevel = yield* GlobalFlag.LogLevel;
   const selectAutomaticPort = yield* AutomaticPort.make.pipe(Effect.provide(ProcessRunner.layer));
   const config = yield* resolveServerConfig(flags, logLevel, { ...options, selectAutomaticPort });
+  if (options?.connectOnStartup) {
+    if (!hasCloudPublicConfig) {
+      return yield* new CliError.UserError({
+        cause: "T3 Connect public configuration is missing.",
+        userMessage:
+          "T3 Connect is not configured. For a source checkout, copy .env.example to .env and restart. Release builds must include the T3 Connect public configuration.",
+      });
+    }
+    yield* runCloudCommand(
+      { baseDir: Option.some(config.baseDir) },
+      Effect.gen(function* () {
+        yield* requireConnectAllowed;
+        yield* linkEnvironmentForConnect({ headless: true, installRelayClient: true });
+      }),
+    );
+  }
   const run = runServer.pipe(
     Effect.provideService(ServerConfig.ServerConfig, config),
     // Settings' Reclaim stops the server; repair once the database is closed, before the restart.
@@ -78,19 +97,24 @@ export const runDefaultServerCommand = Effect.fn("server.runDefaultServerCommand
       });
     }
   }
-  return yield* runServerCommand(flags, { rejectRunningServer: true });
+  return yield* runServerCommand(flags, {
+    rejectRunningServer: true,
+    startupPresentation: "headless",
+    forceAutoBootstrapProjectFromCwd: false,
+    connectOnStartup: true,
+  });
 });
 
 export const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription("Same as `t3`."),
   Command.unlisted,
-  Command.withHandler((flags) => runServerCommand(flags, { rejectRunningServer: true })),
+  Command.withHandler(runDefaultServerCommand),
 );
 
 export const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(
-  Command.withShortDescription("Run T3 Code in this terminal, with no browser."),
+  Command.withShortDescription("Run the T3 Voice host using its saved connection."),
   Command.withDescription(
-    "Run T3 Code in this terminal without opening a browser, and print pairing details. The background service runs this. To set up access from your other devices, run `t3 up`.",
+    "Run the host without interactive login. Background services use this command after T3 Connect has been authorized. Run `t3` for automatic sign-in and a T3 Voice connection address.",
   ),
   Command.withHandler((flags) =>
     runServerCommand(flags, {

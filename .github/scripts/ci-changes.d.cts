@@ -16,13 +16,10 @@ export function decide(
   outputs: {
     typecheck: boolean;
     build: boolean;
-    desktop_launch: boolean;
     test: boolean;
     test_packages: string;
-    test_web: boolean;
     test_server: boolean;
     rust: boolean;
-    release_smoke: boolean;
-    mobile_native: boolean;
+    voice: boolean;
   };
 };

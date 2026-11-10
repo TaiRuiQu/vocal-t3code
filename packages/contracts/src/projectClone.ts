@@ -91,14 +91,6 @@ function projectCloneStageLabel(stage: ProjectCloneStage): string {
   }
 }
 
-export function projectCloneDisplayName(
-  snapshot: Pick<ProjectCloneSnapshot, "repository" | "destinationPath">,
-): string {
-  if (snapshot.repository) return snapshot.repository.nameWithOwner;
-  const segments = snapshot.destinationPath.split(/[/\\]/).filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? snapshot.destinationPath;
-}
-
 export function projectCloneProgressSummary(
   snapshot: Pick<ProjectCloneSnapshot, "stage" | "percent" | "detail" | "stalled">,
 ): string {

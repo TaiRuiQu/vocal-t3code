@@ -2,8 +2,7 @@
 // Runs CI's fast checks for this branch's changes: format and lint of the
 // changed files, knip, generated GraphQL operations, typecheck of the affected
 // packages and their dependents, the test files beside the changed files, and
-// the cross-file checks those miss (agent context budget, React Compiler
-// coverage of the changed client files).
+// the cross-file agent context budget check.
 // A dependency change also gets the unused-patch install check below. CI still
 // runs the full test suites and the jobs listed in the summary.
 //
@@ -191,7 +190,49 @@ export const splitTests = (tests: Iterable<string>) => {
     nodeTests: all.filter((file) => NODE_TEST.test(file)),
   };
 };
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export const generatedCheckInputs = Effect.fn("checkChanged.generatedCheckInputs")(function* (
+  root: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const skipped = new Set([
+    "node_modules",
+    ".git",
+    ".t3",
+    ".repos",
+    ".vite-plus",
+    ".cache",
+    "dist",
+    "dist-electron",
+    "release",
+    "bin",
+    "obj",
+  ]);
+  const pending = [{ directory: "", generated: false }];
+  const files: string[] = [];
+  while (pending.length > 0) {
+    const { directory, generated } = pending.pop()!;
+    for (const entry of yield* fs.readDirectoryEntries(path.join(root, directory))) {
+      if (skipped.has(entry.name)) continue;
+      const relative = path.join(directory, entry.name);
+      const type =
+        entry.type === "Unknown" ? (yield* fs.lstat(path.join(root, relative))).type : entry.type;
+      if (type === "Directory") {
+        pending.push({
+          directory: relative,
+          generated: generated || entry.name === ".generated" || entry.name === ".astro",
+        });
+      } else if (
+        type === "File" &&
+        (generated || entry.name.endsWith(".d.ts") || entry.name.startsWith(".env"))
+      ) {
+        files.push(relative);
+      }
+    }
+  }
+  return files.sort();
+});
 
 // A flag wins over its environment variable; either must be a positive integer.
 const override = Effect.fn("checkChanged.override")(function* (
@@ -263,10 +304,12 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
     const hash = NodeCrypto.createHash("sha256");
     // CI changes test behavior (vite.config.ts rejects .only under CI).
     hash.update(`${process.version}\0${base}\0${ci}\0`);
+    // Modes and blob identities cover deletions; current file bytes are hashed below.
     hash.update(
       yield* git(root, [
         "diff",
-        "--binary",
+        "--raw",
+        "--no-abbrev",
         "--no-renames",
         "--no-ext-diff",
         "--no-textconv",
@@ -274,18 +317,7 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
         "--",
       ]),
     );
-    const ignored = yield* lines(
-      "ls-files",
-      "--others",
-      "--ignored",
-      "--exclude-standard",
-      "--",
-      ":(glob)**/.generated/**",
-      ":(glob)**/.astro/**",
-      ":(glob)**/*.d.ts",
-      ":(glob)**/.env*",
-      ":(exclude,glob)**/node_modules/**",
-    );
+    const ignored = yield* generatedCheckInputs(root);
     for (const file of [
       // Raw bytes of changed files too: .gitattributes normalizes line endings in
       // the diff, but the formatter reads the file as it is on disk.
@@ -338,39 +370,6 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
   if (affected.includes("t3")) tests.add("apps/server/src/provider/AgentContextBudget.test.ts");
   const { vitestTests, nodeTests } = splitTests(tests);
 
-  // React Compiler coverage compiles every client source file, so run only the
-  // changed files' cases, in one extra step: a -t filter in the main test step
-  // would drop every other test. An app is skipped when the main step already
-  // runs its coverage file unfiltered. File filters mirror each coverage test.
-  const compilerApps = [
-    {
-      test: "apps/web/src/reactCompilerCoverage.test.ts",
-      root: "apps/web/src/",
-      // Test names keep the repo-relative path.
-      name: (file: string) => file,
-      compiled: (file: string) =>
-        /\.tsx?$/.test(file) && !/\.(test|browser)\.tsx?$/.test(file) && !file.endsWith(".gen.ts"),
-      // Web has only per-file cases.
-      always: [],
-    },
-    {
-      test: "apps/mobile/src/reactCompilerCoverage.test.ts",
-      root: "apps/mobile/src/",
-      name: (file: string) => file.slice("apps/mobile/".length),
-      compiled: (file: string) => /\.tsx?$/.test(file) && !/\.(test\.tsx?|d\.ts)$/.test(file),
-      // The Metro, cache, and stale-allowlist cases check more than one file, deletions included.
-      always: ["^(?!.*compiles )"],
-    },
-  ].flatMap(({ test, root: appRoot, name, compiled, always }) => {
-    const changed = files.filter((file) => file.startsWith(appRoot) && compiled(file));
-    if (changed.length === 0 || tests.has(test)) return [];
-    const names = changed
-      .filter((file) => present.includes(file))
-      .map((file) => `compiles ${escapeRegExp(name(file))}$`);
-    const pattern = [...names, ...always];
-    return pattern.length > 0 ? [{ test, names, pattern }] : [];
-  });
-
   // knip:check cannot be scoped to a package. Any code change can leave a file,
   // export, or dependency unused (removing the last import of a helper does), so
   // it runs whenever code or a manifest changes.
@@ -402,7 +401,6 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
       file === "pnpm-lock.yaml" ||
       file === ".pnpmfile.cjs" ||
       file.startsWith("patches/") ||
-      file.startsWith("apps/mobile/deps/") ||
       path.basename(file) === "package.json",
   );
 
@@ -429,7 +427,6 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
     ).pipe(Effect.catch((error) => Effect.succeed({ ok: false, output: error.message })));
 
   // Resolve without the lockfile in a temp copy to preserve the working tree and lockfile.
-  // Copy mobile modules too: they are file: dependencies, not workspace packages.
   // Cached registry metadata limits this to patches stranded by local changes, not registry drift.
   const checkPatches = Effect.scoped(
     Effect.gen(function* () {
@@ -442,14 +439,7 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
       yield* copy("package.json");
       yield* copy("pnpm-workspace.yaml");
       for (const pkg of packages) yield* copy(`${pkg.dir}/package.json`);
-      const modulesDir = "apps/mobile/modules";
-      if (yield* fs.exists(inRoot(modulesDir))) {
-        for (const entry of yield* fs.readDirectory(inRoot(modulesDir))) {
-          const manifest = `${modulesDir}/${entry}/package.json`;
-          if (yield* fs.exists(inRoot(manifest))) yield* copy(manifest);
-        }
-      }
-      for (const extra of ["apps/mobile/deps", "patches", ".pnpmfile.cjs"]) {
+      for (const extra of ["patches", ".pnpmfile.cjs"]) {
         if (yield* fs.exists(inRoot(extra))) yield* copy(extra);
       }
       const result = yield* vp(["install", "--lockfile-only", "--ignore-scripts"], temp);
@@ -472,7 +462,6 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
   const filters = (names: ReadonlyArray<string>) => names.flatMap((name) => ["--filter", name]);
   const typecheckWorkers = Math.min(concurrency, affected.length);
   const command = (name: string, args: ReadonlyArray<string>) => ({ name, run: vp(args) });
-  const compilerFiles = compilerApps.reduce((count, app) => count + app.names.length, 0);
 
   const steps: Array<Step<never>> = [
     ...(runPatchCheck ? [{ name: "unused patches", run: checkPatches }] : []),
@@ -530,20 +519,6 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
           ]),
         ]
       : []),
-    ...(compilerApps.length > 0
-      ? [
-          {
-            ...command(`react compiler (${compilerFiles} files)`, [
-              "test",
-              "run",
-              ...compilerApps.map((app) => app.test),
-              "-t",
-              compilerApps.flatMap((app) => app.pattern).join("|"),
-            ]),
-            serial: true,
-          },
-        ]
-      : []),
   ];
 
   const results = yield* runSteps(steps, { concurrency, timeoutSeconds });
@@ -559,11 +534,10 @@ const checkChanged = Effect.fn("checkChanged")(function* (input: {
     );
   }
   const ciOnly = Object.entries({
-    "full test suites": outputs.test || outputs.test_web || outputs.test_server,
+    "full test suites": outputs.test || outputs.test_server,
     build: outputs.build,
     rust: outputs.rust,
-    "mobile native lint": outputs.mobile_native,
-    "release smoke": outputs.release_smoke,
+    "T3 Voice tests and build": outputs.voice,
   }).flatMap(([job, runs]) => (runs ? [job] : []));
   if (ciOnly.length > 0) summary.push(`  CI also runs: ${ciOnly.join(", ")}`);
   if (!runPatchCheck) summary.push("  unused patch check skipped: no dependency files changed");

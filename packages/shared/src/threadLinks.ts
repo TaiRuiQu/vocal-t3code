@@ -142,7 +142,7 @@ export function formatHostedThreadLink(
   return cleaned ? `[${cleaned}](${href})` : href;
 }
 
-export function hasThreadLinks(markdown: string): boolean {
+function hasThreadLinks(markdown: string): boolean {
   return markdown.includes(`${THREAD_LINK_PROTOCOL}://v`) || markdown.includes(HOSTED_PREFIX);
 }
 
@@ -166,10 +166,7 @@ export function threadLinkRefs(
   return [...refs.values()];
 }
 
-export function unknownThreadLinkLabel(
-  link: ThreadLink,
-  messageEnvironmentId: EnvironmentId,
-): string {
+function unknownThreadLinkLabel(link: ThreadLink, messageEnvironmentId: EnvironmentId): string {
   return link.environmentId === null || link.environmentId === messageEnvironmentId
     ? "Thread no longer available"
     : "Thread on another machine";

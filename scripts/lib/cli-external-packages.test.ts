@@ -40,8 +40,9 @@ describe("shouldBundleCliDependency", () => {
       "transcribe-cpp",
       "@transcribe-cpp/win32-x64-cpu-vulkan",
       "koffi",
-      "@clerk/electron-passkeys",
       "node-addon-api",
+      "undici",
+      "@fastify/busboy",
     ]) {
       assert.strictEqual(shouldBundleCliDependency(id), false, id);
     }

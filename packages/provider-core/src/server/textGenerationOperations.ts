@@ -36,7 +36,7 @@ export interface Request<S extends Schema.Top> {
 
 const INVESTIGATION_TIMEOUT_MS = 15 * 60_000;
 
-export const investigationUnsupported = (operation: Operation, provider: string) =>
+const investigationUnsupported = (operation: Operation, provider: string) =>
   new TextGenerationError({
     operation,
     detail: `${provider} cannot investigate a checkout read-only. Choose another review guide model, or source control writer model when none is set.`,

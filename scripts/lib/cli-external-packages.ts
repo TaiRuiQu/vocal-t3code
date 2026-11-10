@@ -1,8 +1,9 @@
 /** Keep bundler externals and staged runtime dependency roots aligned. */
 // Filesystem-loaded externals need dependencies outside the bundle.
 const CLI_RUNTIME_EXTERNAL_PREFIXES = [
-  // Cursor ships computed Webpack imports and platform helper packages.
-  "@cursor/sdk",
+  // The Windows HTTP dispatcher loads undici through createRequire beside the executable.
+  "undici",
+  "@fastify/busboy",
   // Playwright reads package.json and browsers.json beside its runtime modules.
   "playwright-core",
   "node-pty",
@@ -14,31 +15,14 @@ const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   "koffi",
   "@koromix/",
   "@napi-rs/keyring",
-  "@clerk/electron-passkeys",
   "node-gyp-build",
   "node-addon-api",
   "bufferutil",
   "utf-8-validate",
 ] as const;
 
-// Match Cursor dependency boundaries so zod does not externalize zod-to-json-schema.
-const CURSOR_RUNTIME_DEPENDENCIES = [
-  "@bufbuild/protobuf",
-  "@connectrpc/connect",
-  "@connectrpc/connect-node",
-  "@connectrpc/connect-web",
-  "@statsig/js-client",
-  "@statsig/client-core",
-  "zod",
-  "undici",
-  "@fastify/busboy",
-] as const;
-
 export function isRuntimeExternalCliDependency(id: string): boolean {
-  return (
-    CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
-    CURSOR_RUNTIME_DEPENDENCIES.some((name) => id === name || id.startsWith(`${name}/`))
-  );
+  return CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 /** Use neverBundle: false from alwaysBundle means no opinion and leaves transitive packages bundled. */

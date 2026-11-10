@@ -126,7 +126,7 @@ export function isAbsolutePath(value: string): boolean {
 }
 
 /** Home-relative host paths are expanded by the destination server. */
-export function isHostPath(value: string): boolean {
+function isHostPath(value: string): boolean {
   return isAbsolutePath(value) || value.startsWith("~/");
 }
 

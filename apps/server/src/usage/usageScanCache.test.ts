@@ -83,18 +83,6 @@ describe("scan cache round trip", () => {
         ],
       ],
     ]);
-    original.set("/grok.jsonl", {
-      size: 40,
-      malformedRecords: 2,
-      mtimeMs: 300,
-      provider: "grok",
-      records: [
-        record({ provider: "grok", model: "grok-4.5-build", dedupeKey: "s:p:grok-4.5-build" }),
-        record({ provider: "grok", model: "<synthetic>", dedupeKey: "s:p:<synthetic>" }),
-      ],
-      tailRecords: [record({ provider: "grok", model: "<synthetic>", dedupeKey: null })],
-      position: position({ resumeOffset: 30, guardLength: 30, guardHash: 123 }),
-    });
     const state = initialCodexScanState();
     for (const line of [
       { type: "session_meta", payload: { id: "session-c", model_provider: "openai" } },
@@ -157,7 +145,7 @@ describe("scan cache round trip", () => {
       TEST_FORMAT_MAP,
     );
 
-    expect(restored.size).toBe(4);
+    expect(restored.size).toBe(3);
     expect(restored).toEqual(original);
   });
 
@@ -182,14 +170,6 @@ describe("scan cache round trip", () => {
             forkCopyAnchorMs: 0,
           },
         }),
-      });
-      original.set("/gone-pi.jsonl", {
-        ...original.get("/gone.jsonl")!,
-        size: 256,
-        provider: "pi",
-        records: [record({ provider: "pi", model: "anthropic/claude-fable-5" })],
-        malformedRecords: 3,
-        position: position({ state: { sessionId: "session-a" } }),
       });
       const cleanCodex = {
         ...original.get("/gone-codex.jsonl")!,
@@ -237,15 +217,6 @@ describe("scan cache round trip", () => {
         size: version >= 8 ? cleanCodex.size : -1,
         position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
       });
-      expect(restored.get("/gone-pi.jsonl")).toEqual(
-        version >= 6
-          ? original.get("/gone-pi.jsonl")
-          : {
-              ...original.get("/gone-pi.jsonl"),
-              size: -1,
-              position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
-            },
-      );
     },
   );
 

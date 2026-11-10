@@ -1,14 +1,10 @@
 import * as Predicate from "effect/Predicate";
 
-export const MCP_APP_PROTOCOL_VERSION = "2026-01-26";
 export const MCP_APP_MIME_TYPE = "text/html;profile=mcp-app";
 export const MCP_APP_EXTENSION_ID = "io.modelcontextprotocol/ui";
 export const MCP_APP_RESOURCE_SCHEME = "ui://";
 export const MCP_APP_OUTPUT_KEY = "t3McpApp";
 
-const MCP_APP_MIN_HEIGHT = 80;
-export const MCP_APP_DEFAULT_HEIGHT = 320;
-export const MCP_APP_MAX_HEIGHT = 2000;
 export const MCP_APP_MAX_HTML_BYTES = 5 * 1024 * 1024;
 const MAX_DOMAINS = 32;
 const MAX_DOMAIN_LENGTH = 256;
@@ -122,15 +118,6 @@ export function readMcpAppReference(value: unknown): McpAppReference | undefined
   };
 }
 
-export function mcpAppReferencesEqual(left: McpAppReference, right: McpAppReference): boolean {
-  return (
-    left.attachmentId === right.attachmentId &&
-    left.server === right.server &&
-    left.tool === right.tool &&
-    left.resourceUri === right.resourceUri
-  );
-}
-
 /** Reads a tool's `_meta.ui.resourceUri`, or the deprecated flat `ui/resourceUri`. */
 export function mcpAppToolResourceUri(meta: unknown): string | undefined {
   if (!Predicate.isObject(meta)) return undefined;
@@ -234,23 +221,4 @@ export function injectMcpAppCookieBootstrap(html: string): string {
       html,
     )![0];
   return `${prefix}${bootstrap}${html.slice(prefix.length)}`;
-}
-
-export function mcpAppAllowAttribute(permissions: McpAppPermissions | undefined): string {
-  const features: Array<string> = [];
-  if (permissions?.camera) features.push("camera");
-  if (permissions?.microphone) features.push("microphone");
-  if (permissions?.geolocation) features.push("geolocation");
-  if (permissions?.clipboardWrite) features.push("clipboard-write");
-  return features.join("; ");
-}
-
-export function clampMcpAppHeight(height: number): number {
-  if (!Number.isFinite(height)) return MCP_APP_DEFAULT_HEIGHT;
-  return Math.round(Math.min(MCP_APP_MAX_HEIGHT, Math.max(MCP_APP_MIN_HEIGHT, height)));
-}
-
-export function mcpAppFileName(reference: McpAppReference): string {
-  const name = reference.tool.replace(/[^\w.-]+/g, "-").slice(0, 80) || "app";
-  return `${name}.html`;
 }

@@ -418,7 +418,8 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ),
     () => 443,
   );
-  const staticDir = devUrl ? undefined : yield* ServerConfig.resolveStaticDir();
+  const staticDir =
+    isHeadlessStartup || devUrl ? undefined : yield* ServerConfig.resolveStaticDir();
   const explicitHost = resolveOptionPrecedence(
     normalizedFlags.host,
     Option.fromUndefinedOr(env.host),

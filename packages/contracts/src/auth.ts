@@ -136,16 +136,6 @@ export function sessionGrantsScope(
   return parent !== undefined && session.scopes?.includes(parent) === true;
 }
 
-export function sessionHasLegacyPermissions(session: SessionGrantInput): boolean {
-  const permissions = session.permissions;
-  return (
-    session.authenticated &&
-    permissions !== undefined &&
-    permissions.every((scope) => legacyScopes.has(scope)) &&
-    Object.values(legacyParents).some((parent) => permissions.includes(parent))
-  );
-}
-
 // Shell and full-access agent scopes already confer access and relay authority.
 export const AuthStandardClientScopes = [
   AuthOrchestrationReadScope,

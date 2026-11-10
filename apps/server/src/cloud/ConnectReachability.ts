@@ -3,10 +3,10 @@ import * as NodeNet from "node:net";
 import {
   connectReachabilityHelpUrl,
   type EnvironmentConnectReachability,
-  formatConnectReachable,
 } from "@t3tools/contracts";
 import { readTailscaleExitNode, type TailscaleExitNode } from "@t3tools/tailscale";
 import * as Clock from "effect/Clock";
+import * as Console from "effect/Console";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
@@ -216,7 +216,11 @@ const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   // `order` ranks checks by start, so a slow older one cannot replace a newer result.
   const latestRef = yield* Ref.make(
-    Option.none<{ readonly order: number; readonly result: EnvironmentConnectReachability }>(),
+    Option.none<{
+      readonly order: number;
+      readonly result: EnvironmentConnectReachability;
+      readonly hostname: string | null;
+    }>(),
   );
   const checkCounter = yield* Ref.make(0);
   // Checks update this as they finish, even when a newer check already did. A dead streak
@@ -373,7 +377,7 @@ const make = Effect.gen(function* () {
     const previous = yield* Ref.modify(latestRef, (current) =>
       Option.isSome(current) && current.value.order > order
         ? [null, current]
-        : [current, Option.some({ order, result })],
+        : [current, Option.some({ order, result, hostname: facts.connector?.hostname ?? null })],
     );
     if (previous === null) return result;
     const started = yield* restartDeadConnector(facts, result, order);
@@ -388,7 +392,8 @@ const make = Effect.gen(function* () {
     }
     const changed = Option.match(previous, {
       onNone: () => true,
-      onSome: ({ result: last }) =>
+      onSome: ({ result: last, hostname }) =>
+        hostname !== (facts.connector?.hostname ?? null) ||
         last.status !== result.status ||
         (last.status === "unreachable" &&
           result.status === "unreachable" &&
@@ -404,9 +409,9 @@ const make = Effect.gen(function* () {
       yield* log(`\n${formatReachabilityFailure(result)}`).pipe(
         Effect.annotateLogs({ cause: result.cause }),
       );
-    } else {
-      yield* Effect.logInfo(
-        `T3 Connect is reachable from other devices. ${formatConnectReachable(result)}`,
+    } else if (facts.connector?.hostname) {
+      yield* Console.log(
+        `\nT3 Voice connection:\nhttps://${facts.connector.hostname}/\n\nCopy this address into T3 Voice and authorize the connection.\nKeep this terminal open. Press Ctrl+C to stop.`,
       );
     }
     return result;

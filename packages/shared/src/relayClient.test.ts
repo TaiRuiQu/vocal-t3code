@@ -23,6 +23,7 @@ import * as RelayClient from "./relayClient.ts";
 
 // POSIX exec-bit checks do not apply on NTFS.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
+const normalizePath = (path: string) => path.replaceAll("\\", "/");
 
 const layerHostRuntime = (env: Record<string, string> = {}, platform: NodeJS.Platform = "linux") =>
   Layer.mergeAll(
@@ -100,7 +101,14 @@ const managedPathFor = (baseDir: string, version: string) =>
 
 const renameError = (code: string, path: string) =>
   PlatformError.systemError({
-    _tag: code === "EBUSY" ? "Busy" : code === "EACCES" ? "PermissionDenied" : "Unknown",
+    _tag:
+      code === "EEXIST"
+        ? "AlreadyExists"
+        : code === "EBUSY"
+          ? "Busy"
+          : code === "EACCES"
+            ? "PermissionDenied"
+            : "Unknown",
     module: "FileSystem",
     method: "rename",
     pathOrDescriptor: path,
@@ -118,6 +126,17 @@ const makeLockedRenames = (
     const renames = { attempts: 0 };
     const locked = FileSystem.make({
       ...fileSystem,
+      // The spawner is simulated; NTFS cannot preserve the downloaded Linux fixture's exec bits.
+      stat: (path) =>
+        fileSystem
+          .stat(path)
+          .pipe(
+            Effect.map((info) =>
+              windowsHost && info.type === "File" && normalizePath(path).endsWith("/cloudflared")
+                ? { ...info, mode: info.mode | 0o111 }
+                : info,
+            ),
+          ),
       rename: (from, to) =>
         Effect.suspend(() => {
           if ((to.endsWith(".tmp") ? "staging" : "activation") !== input.rename) {
@@ -158,7 +177,8 @@ describe("RelayClient", () => {
       const directory = `${baseDir}/tools/cloudflared/${RelayClient.CLOUDFLARED_VERSION}/linux-x64`;
       const lockPath = `${directory}/cloudflared.lock`;
       yield* fileSystem.makeDirectory(directory, { recursive: true });
-      yield* fileSystem.writeFileString(lockPath, "other-installer");
+      yield* fileSystem.makeDirectory(lockPath);
+      yield* fileSystem.writeFileString(`${lockPath}/${process.pid}-other-installer`, "");
       const contended = yield* Deferred.make<void>();
       const manager = yield* RelayClient.makeCloudflaredRelayClient({ baseDir }).pipe(
         Effect.provideService(FileSystem.FileSystem, {
@@ -168,7 +188,9 @@ describe("RelayClient", () => {
               .rename(from, to)
               .pipe(
                 Effect.tapError(() =>
-                  to === lockPath ? Deferred.succeed(contended, undefined) : Effect.void,
+                  normalizePath(to) === normalizePath(lockPath)
+                    ? Deferred.succeed(contended, undefined)
+                    : Effect.void,
                 ),
               ),
         }),
@@ -176,7 +198,7 @@ describe("RelayClient", () => {
       const installing = yield* manager.install.pipe(Effect.forkChild);
       yield* Deferred.await(contended);
       yield* Fiber.interrupt(installing);
-      expect(yield* fileSystem.readFileString(lockPath)).toBe("other-installer");
+      expect(yield* fileSystem.readDirectory(lockPath)).toEqual([`${process.pid}-other-installer`]);
     }).pipe(
       Effect.scoped,
       Effect.provide(
@@ -215,7 +237,16 @@ describe("RelayClient", () => {
       const manager = yield* RelayClient.makeCloudflaredRelayClient({
         baseDir,
         releaseAsset: testReleaseAsset,
-      });
+      }).pipe(
+        Effect.provideService(FileSystem.FileSystem, {
+          ...fileSystem,
+          // Windows rename may delete a destination file before refusing to replace it with a directory.
+          rename: (from, to) =>
+            normalizePath(to) === normalizePath(lockPath)
+              ? Effect.fail(renameError("EEXIST", to))
+              : fileSystem.rename(from, to),
+        }),
+      );
       const installing = yield* manager.install.pipe(
         Effect.provideService(Clock.Clock, {
           ...clock,
@@ -298,7 +329,7 @@ describe("RelayClient", () => {
             fileSystem.readDirectory(path).pipe(
               Effect.tap((entries) =>
                 Effect.gen(function* () {
-                  if (path !== lockPath) return;
+                  if (normalizePath(path) !== normalizePath(lockPath)) return;
                   if (replaced) {
                     expect(entries).toEqual([replacement]);
                     yield* Deferred.succeed(checked, undefined);
@@ -375,7 +406,7 @@ describe("RelayClient", () => {
               .rename(from, to)
               .pipe(
                 Effect.tap(() =>
-                  to === lockPath && pauseWrite
+                  normalizePath(to) === normalizePath(lockPath) && pauseWrite
                     ? Deferred.succeed(acquired, undefined).pipe(
                         Effect.andThen(Deferred.await(completeWrite)),
                       )
@@ -612,6 +643,45 @@ describe("RelayClient", () => {
           layerHttpClient(new Uint8Array()),
           layerSpawner([]),
           layerHostRuntime(configEnv, platform),
+        ),
+      ),
+    );
+  });
+
+  it.effect("uses the packaged relay client without downloading it", () => {
+    const platform = windowsHost ? "win32" : "linux";
+    const executableName = windowsHost ? "cloudflared.exe" : "cloudflared";
+    return Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-bundled-relay-" });
+      const bundledPath = `${baseDir}/relay-client/${executableName}`;
+      yield* fs.makeDirectory(`${baseDir}/relay-client`);
+      yield* fs.writeFileString(bundledPath, "cloudflared");
+      if (!windowsHost) yield* fs.chmod(bundledPath, 0o755);
+      const manager = yield* RelayClient.makeCloudflaredRelayClient({ baseDir });
+      const resolve = manager.resolve.pipe(
+        Effect.provideService(HostProcess.IsExecutable, true),
+        Effect.provideService(HostProcess.ExecutablePath, `${baseDir}/t3`),
+      );
+      expect(yield* resolve).toMatchObject({
+        status: "available",
+        executablePath: windowsHost ? bundledPath.replaceAll("/", "\\") : bundledPath,
+        source: "bundled",
+      });
+      yield* fs.remove(bundledPath);
+      expect(yield* resolve).toEqual({
+        status: "missing",
+        version: RelayClient.CLOUDFLARED_VERSION,
+      });
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          NodeServices.layer,
+          NodeCrypto.layer,
+          layerHttpClient(new Uint8Array()),
+          layerSpawner([]),
+          layerHostRuntime({ PATH: "" }, platform),
         ),
       ),
     );

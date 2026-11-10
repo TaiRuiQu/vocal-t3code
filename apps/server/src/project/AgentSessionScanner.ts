@@ -34,9 +34,7 @@ import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
-import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
-import { resolvePiSessionsDir } from "@t3tools/provider-pi/server/usage";
 import * as ServerSettings from "../serverSettings.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import {
@@ -1299,60 +1297,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  // Pi nests sessions in one directory per cwd, but a custom session directory holds them flat.
-  const discoverPiTranscripts = Effect.fn("AgentSessionScanner.discoverPiTranscripts")(function* (
-    sessionsDir: string,
-    providerInstanceId: ProviderInstanceId,
-    operationBudget: number,
-  ) {
-    let operationsRemaining = operationBudget;
-    let truncated = false;
-    const readDirectory = (directory: string) => {
-      if (operationsRemaining <= 0) {
-        truncated = true;
-        return Effect.succeed<ReadonlyArray<string>>([]);
-      }
-      operationsRemaining -= 1;
-      return listDirectory(directory);
-    };
-    const transcripts: Array<TranscriptCandidate> = [];
-    for (const entry of yield* readDirectory(sessionsDir)) {
-      if (operationsRemaining <= 0) {
-        truncated = true;
-        break;
-      }
-      const entryPath = path.join(sessionsDir, entry);
-      const filePaths = entry.endsWith(".jsonl")
-        ? [entryPath]
-        : (yield* readDirectory(entryPath))
-            .filter((nested) => nested.endsWith(".jsonl"))
-            .map((nested) => path.join(entryPath, nested));
-
-      for (const filePath of filePaths) {
-        if (operationsRemaining <= 0) {
-          truncated = true;
-          break;
-        }
-        operationsRemaining -= 1;
-        const stats = yield* statOption(filePath);
-        if (
-          Option.isSome(stats) &&
-          stats.value.type === "File" &&
-          Option.isSome(stats.value.mtime)
-        ) {
-          transcripts.push({
-            filePath,
-            mtimeMs: stats.value.mtime.value.getTime(),
-            providerInstanceId,
-            homePath: sessionsDir,
-            size: Number(stats.value.size),
-          });
-        }
-      }
-    }
-    return { transcripts, truncated };
-  });
-
   const groupTranscriptsByCwd = Effect.fn("AgentSessionScanner.groupTranscriptsByCwd")(function* (
     source: AgentSessionSource,
     transcripts: ReadonlyArray<TranscriptCandidate>,
@@ -1407,7 +1351,7 @@ export const make = Effect.gen(function* () {
     const raw: Array<RawCandidate> = [];
     let truncated = false;
 
-    for (const source of ["claudeAgent", "codex", "pi"] as const) {
+    for (const source of ["claudeAgent", "codex"] as const) {
       const instances: Array<{
         readonly instanceId: ProviderInstanceId;
         readonly config: ProviderInstanceConfig;
@@ -1445,13 +1389,7 @@ export const make = Effect.gen(function* () {
         };
 
         let homePath: string;
-        if (source === "pi") {
-          const environment = yield* mergeProviderInstanceEnvironment(
-            instance.environment,
-            hostEnvironment,
-          ).pipe(Effect.provideService(HostProcess.HomeDirectory, homeDir));
-          homePath = resolvePiSessionsDir(environment, homeDir, path);
-        } else if (source === "claudeAgent") {
+        if (source === "claudeAgent") {
           const config = decodeClaudeSettings(instance.config ?? {});
           if (Option.isNone(config)) continue;
           homePath = resolveClaudeConfigDir(
@@ -1492,11 +1430,7 @@ export const make = Effect.gen(function* () {
           continue;
         }
         const discover =
-          source === "claudeAgent"
-            ? discoverClaudeTranscripts
-            : source === "codex"
-              ? discoverCodexTranscripts
-              : discoverPiTranscripts;
+          source === "claudeAgent" ? discoverClaudeTranscripts : discoverCodexTranscripts;
         const discovered = yield* discover(home.homePath, home.providerInstanceId, operationBudget);
         truncated ||= discovered.truncated;
         transcriptCandidates.push(...discovered.transcripts);

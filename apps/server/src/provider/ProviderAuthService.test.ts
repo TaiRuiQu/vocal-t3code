@@ -22,15 +22,15 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProviderSessionManager from "../orchestration-v2/ProviderSessionManager.ts";
-import { AcpProviderCapabilitiesV2 } from "@t3tools/provider-acp/server/adapter";
+import { CodexProviderCapabilitiesV2 } from "../orchestration-v2/Adapters/CodexAdapterV2.ts";
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderAuthService from "./ProviderAuthService.ts";
 import * as ProviderInstanceRegistry from "./ProviderInstanceRegistry.ts";
 
-const instanceId = ProviderInstanceId.make("antigravity-personal");
-const otherInstanceId = ProviderInstanceId.make("antigravity-work");
-const unsupportedInstanceId = ProviderInstanceId.make("codex");
-const driverKind = ProviderDriverKind.make("antigravity");
+const instanceId = ProviderInstanceId.make("codex-personal");
+const otherInstanceId = ProviderInstanceId.make("codex-work");
+const unsupportedInstanceId = ProviderInstanceId.make("unsupported");
+const driverKind = ProviderDriverKind.make("codex");
 const owner = "paired-client-owner";
 const otherOwner = "paired-client-other";
 const flowId = "test-sign-in-flow";
@@ -104,7 +104,7 @@ function makeSession(
     status,
     cwd: "/workspace",
     model: null,
-    capabilities: AcpProviderCapabilitiesV2,
+    capabilities: CodexProviderCapabilitiesV2,
     createdAt: nowUtc,
     updatedAt: nowUtc,
     lastError: null,

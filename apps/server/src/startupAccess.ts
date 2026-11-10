@@ -3,19 +3,7 @@ import * as NodeOS from "node:os";
 
 import { isPrivateNetworkHost, isSharedAddressSpaceHost } from "@t3tools/shared/hostClassification";
 import { QrCode } from "@t3tools/shared/qrCode";
-import { buildPairingAppLink } from "@t3tools/shared/remote";
-import * as Effect from "effect/Effect";
-import { HttpServer } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
-
-import * as ServerConfig from "./config.ts";
-import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
-
-export interface HeadlessServeAccessInfo {
-  readonly connectionString: string;
-  readonly token: string;
-  readonly pairingUrl: string;
-}
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 
@@ -139,18 +127,6 @@ export const resolveHeadlessConnectionString = (
   return `http://${formatHostForUrl(connectionHost)}:${port}`;
 };
 
-const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
-  if (
-    typeof address === "object" &&
-    address !== null &&
-    "port" in address &&
-    typeof address.port === "number"
-  ) {
-    return address.port;
-  }
-  return fallbackPort;
-};
-
 export const buildPairingUrl = (connectionString: string, token: string): string => {
   const url = new URL(connectionString);
   url.pathname = "/pair";
@@ -180,33 +156,3 @@ export const renderTerminalQrCode = (value: string, margin = 2): string => {
 
   return rows.join("\n");
 };
-
-export const formatHeadlessServeOutput = (accessInfo: HeadlessServeAccessInfo): string =>
-  [
-    "T3 Code server is ready.",
-    `Connection string: ${accessInfo.connectionString}`,
-    `Token: ${accessInfo.token}`,
-    `Pairing URL: ${accessInfo.pairingUrl}`,
-    `App link: ${buildPairingAppLink(accessInfo.pairingUrl)}`,
-    "",
-    renderTerminalQrCode(accessInfo.pairingUrl),
-    "",
-  ].join("\n");
-
-export const issueHeadlessServeAccessInfo = Effect.fn("issueHeadlessServeAccessInfo")(function* () {
-  const serverConfig = yield* ServerConfig.ServerConfig;
-  const httpServer = yield* HttpServer.HttpServer;
-  const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-  const connectionString = resolveHeadlessConnectionString(
-    serverConfig.host,
-    resolveListeningPort(httpServer.address, serverConfig.port),
-    { privateNetworkOnly: serverConfig.privateNetworkOnly },
-  );
-  const issued = yield* serverAuth.issueStartupPairingCredential();
-
-  return {
-    connectionString,
-    token: issued.credential,
-    pairingUrl: buildPairingUrl(connectionString, issued.credential),
-  } satisfies HeadlessServeAccessInfo;
-});

@@ -163,7 +163,9 @@ function formatRelayClientStatus(executable: RelayClient.RelayClientStatus): Rea
           ? "PATH"
           : executable.source === "managed"
             ? "managed install"
-            : "configured override";
+            : executable.source === "bundled"
+              ? "bundled relay client"
+              : "configured override";
       return [
         `  Relay client: available via ${source}`,
         `    Path: ${executable.executablePath}`,
@@ -583,6 +585,7 @@ const linkEnvironmentForConnect = Effect.fn("cloud.cli.link_environment")(functi
   /** For `t3 up`, where the user already chose T3 Connect: install it quietly, without asking. */
   readonly installRelayClient?: boolean;
 }) {
+  const identity = yield* authorizeCli(options);
   const publishOnly = options.publishOnly ?? false;
   if (!publishOnly) {
     const relayClient = yield* RelayClient.RelayClient;
@@ -605,7 +608,6 @@ const linkEnvironmentForConnect = Effect.fn("cloud.cli.link_environment")(functi
     }
   }
 
-  const identity = yield* authorizeCli(options);
   yield* CliState.setCliDesiredCloudLink(true, publishOnly ? "publish_only" : "managed");
   if (yield* CliState.dropRevokedCloudLink) {
     yield* Console.log("Replacing the link T3 Connect revoked.");

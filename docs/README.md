@@ -1,72 +1,18 @@
-# T3 Code docs
+# T3 Code 终端主机
 
-## Using T3 Code
+本分支为 T3 Voice 提供终端后端，仅保留 OpenCode、Codex 和 Claude Code。
 
-- [Install T3 Code](./user/install.md)
-- [Messages and context](./user/composer.md)
-- [Working with threads](./user/thread-sidebar.md)
-- [Permission modes](./user/permission-modes.md)
-- [Terminal history](./user/terminal.md)
-- [Source control](./user/source-control.md)
-- [Project settings](./user/project-settings.md)
-- [Appearance and themes](./user/appearance.md)
-- [Keyboard shortcuts](./user/keybindings.md)
-- [Voice input](./user/voice-input.md)
-- [Text generation models](./user/text-generation.md)
-- [SnapShots](./user/snap-shot.md)
-- [Visual replies](./user/html-renders.md)
-- [Import browser sessions](./user/browser-import.md)
-- [Use T3 Code as your default browser](./user/default-browser.md)
-- [Devices](./user/devices.md)
-- [Usage and limits](./user/usage.md)
-- [Secrets](./user/secrets.md)
-- [Product usage data](./user/telemetry.md)
-- [Remote access](./user/remote-access.md)
-- [Guest links](./user/guest-links.md)
-- [T3 Connect troubleshooting](./user/t3-connect-troubleshooting.md)
-- [Outside agents (MCP)](./user/outside-agents.md)
-- [Running in the background](./user/background-service.md)
-- [Updating T3 Code](./user/updating.md)
-- [Triage an issue](./user/triage.md)
-- Provider guides: [Codex](./user/providers-codex.md) · [Claude](./user/providers-claude.md) · [OpenCode](./user/providers-opencode.md) · [Antigravity](./user/providers-antigravity.md) · [Kiro](./user/providers-kiro.md) · [Pi](./user/providers-pi.md) · [Muse Code](./user/providers-muse.md) · [fx](./user/providers-fx.md)
+- [安装、登录和连接 T3 Voice](./user/install.md)
+- [源码运行与打包](../README.md)
+- [T3 Voice 使用说明](../apps/voice-windows/README.md)
 
----
+## 后端与连接
 
-## Working on T3 Code
-
-Start with the [development runbook](./operations/development.md) and
-[contribution policy](../CONTRIBUTING.md).
-
-Internal notes preserve architectural decisions, constraints, and implementation traps that the
-source alone does not explain. Most code changes do not need an internal documentation update. Follow the
-[documentation rules](../AGENTS.md#documentation) before adding one.
-
-- [Architecture overview](./internals/overview.md)
-- [Glossary](./internals/glossary.md)
-- [Connection runtime](./internals/connection-runtime.md)
-- [Providers](./internals/providers.md)
-- [Adding a provider](./internals/adding-a-provider.md)
-- [Pull request file revisions](./internals/pull-request-file-revisions.md)
-- [Model classification](./internals/model-manifest.md)
-- [Remote environments](./internals/remote.md)
-- [Server updates](./internals/server-updates.md)
-- [Resource telemetry](./internals/resource-telemetry.md)
-- [Product analytics](./internals/product-analytics.md)
-- [Environment auth](./internals/environment-auth.md)
+- [后端架构](./internals/overview.md)
+- [术语](./internals/glossary.md)
+- [远程环境](./internals/remote.md)
+- [环境鉴权与权限](./internals/environment-auth.md)
 - [T3 Connect](./internals/t3-connect.md)
-- [Assistant citations](./internals/assistant-citations.md)
-- [Mobile layout](./internals/mobile-layout.md)
-- [Mobile navigation](./internals/mobile-navigation.md)
-- [Mobile development lifecycle](./internals/mobile-development.md)
-- [Terminal runtime](./internals/terminal-runtime.md)
-- [Devices](./internals/devices.md)
-- [Voice input](./internals/voice-input.md)
+- [T3 Connect 故障排查](./user/t3-connect-troubleshooting.md)：主机侧先运行 `t3 connect status`。
 
-### Runbooks
-
-- [Development and local builds](./operations/development.md)
-- [T3 Connect setup](./operations/connect-setup.md)
-- [Release](./operations/release.md)
-- [Observability](./operations/observability.md)
-- [Relay observability](./operations/relay-observability.md)
-- [Mobile app store screenshots](./operations/mobile-app-store-screenshots.md)
+其余文档保留了上游产品的历史说明，其中涉及 Web、桌面或移动端界面的操作不适用于本分支。当前启动和连接方式以[安装说明](./user/install.md)为准。

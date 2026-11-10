@@ -43,9 +43,7 @@ credential, or authorization behavior.
   schema and migration changes together.
 
 Shared request and response schemas live in
-[`packages/contracts/src/relay.ts`](../../packages/contracts/src/relay.ts). Shared client-side relay
-calls live in
-[`packages/client-runtime/src/relay/managedRelay.ts`](../../packages/client-runtime/src/relay/managedRelay.ts).
+[`packages/contracts/src/relay.ts`](../../packages/contracts/src/relay.ts).
 
 ## Working Locally
 

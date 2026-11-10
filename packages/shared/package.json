@@ -7,37 +7,17 @@
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"
     },
-    "./authScopeOptions": {
-      "types": "./src/authScopeOptions.ts",
-      "import": "./src/authScopeOptions.ts"
-    },
     "./orchestrationV2ThreadError": {
       "types": "./src/orchestrationV2ThreadError.ts",
       "import": "./src/orchestrationV2ThreadError.ts"
-    },
-    "./delimitedPreview": {
-      "types": "./src/delimitedPreview.ts",
-      "import": "./src/delimitedPreview.ts"
     },
     "./socketFrameParts": {
       "types": "./src/socketFrameParts.ts",
       "import": "./src/socketFrameParts.ts"
     },
-    "./composerPullRequestMatches": {
-      "types": "./src/composerPullRequestMatches.ts",
-      "import": "./src/composerPullRequestMatches.ts"
-    },
     "./themePalettes": {
       "types": "./src/themePalettes.ts",
       "import": "./src/themePalettes.ts"
-    },
-    "./themePreview": {
-      "types": "./src/themePreview.ts",
-      "import": "./src/themePreview.ts"
-    },
-    "./textDirection": {
-      "types": "./src/textDirection.ts",
-      "import": "./src/textDirection.ts"
     },
     "./projectFavicon": {
       "types": "./src/projectFavicon.ts",
@@ -50,10 +30,6 @@
     "./model": {
       "types": "./src/model.ts",
       "import": "./src/model.ts"
-    },
-    "./advertisedEndpoint": {
-      "types": "./src/advertisedEndpoint.ts",
-      "import": "./src/advertisedEndpoint.ts"
     },
     "./agentAwareness": {
       "types": "./src/agentAwareness.ts",
@@ -139,10 +115,6 @@
       "types": "./src/htmlRender.ts",
       "import": "./src/htmlRender.ts"
     },
-    "./favicon": {
-      "types": "./src/favicon.ts",
-      "import": "./src/favicon.ts"
-    },
     "./Struct": {
       "types": "./src/Struct.ts",
       "import": "./src/Struct.ts"
@@ -170,10 +142,6 @@
     "./t3ProjectFile": {
       "types": "./src/t3ProjectFile.ts",
       "import": "./src/t3ProjectFile.ts"
-    },
-    "./orchestrationTiming": {
-      "types": "./src/orchestrationTiming.ts",
-      "import": "./src/orchestrationTiming.ts"
     },
     "./remote": {
       "types": "./src/remote.ts",
@@ -243,10 +211,6 @@
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
     },
-    "./keybindingMatching": {
-      "types": "./src/keybindingMatching.ts",
-      "import": "./src/keybindingMatching.ts"
-    },
     "./threadTranscript": {
       "types": "./src/threadTranscript.ts",
       "import": "./src/threadTranscript.ts"
@@ -263,10 +227,6 @@
       "types": "./src/composerTrigger.ts",
       "import": "./src/composerTrigger.ts"
     },
-    "./pullRequestComposerTrigger": {
-      "types": "./src/pullRequestComposerTrigger.ts",
-      "import": "./src/pullRequestComposerTrigger.ts"
-    },
     "./composerInlineTokens": {
       "types": "./src/composerInlineTokens.ts",
       "import": "./src/composerInlineTokens.ts"
@@ -274,10 +234,6 @@
     "./assistantCitations": {
       "types": "./src/assistantCitations.ts",
       "import": "./src/assistantCitations.ts"
-    },
-    "./promptLinks": {
-      "types": "./src/promptLinks.ts",
-      "import": "./src/promptLinks.ts"
     },
     "./threadLinks": {
       "types": "./src/threadLinks.ts",
@@ -290,10 +246,6 @@
     "./composerContextLegacy": {
       "types": "./src/composerContextLegacy.ts",
       "import": "./src/composerContextLegacy.ts"
-    },
-    "./composerContextClipboard": {
-      "types": "./src/composerContextClipboard.ts",
-      "import": "./src/composerContextClipboard.ts"
     },
     "./terminalLabels": {
       "types": "./src/terminalLabels.ts",
@@ -334,10 +286,6 @@
     "./image": {
       "types": "./src/image.ts",
       "import": "./src/image.ts"
-    },
-    "./chatList": {
-      "types": "./src/chatList.ts",
-      "import": "./src/chatList.ts"
     },
     "./nodeRuntime": {
       "types": "./src/nodeRuntime.ts",
@@ -387,14 +335,6 @@
       "types": "./src/usageLimits.ts",
       "import": "./src/usageLimits.ts"
     },
-    "./desktopAppControl": {
-      "types": "./src/desktopAppControl.ts",
-      "import": "./src/desktopAppControl.ts"
-    },
-    "./thirdPartyLicenses": {
-      "types": "./src/thirdPartyLicenses.ts",
-      "import": "./src/thirdPartyLicenses.ts"
-    },
     "./claudeCompaction": {
       "types": "./src/claudeCompaction.ts",
       "import": "./src/claudeCompaction.ts"
@@ -443,10 +383,6 @@
       "types": "./src/providerAuthReturnUrl.ts",
       "import": "./src/providerAuthReturnUrl.ts"
     },
-    "./codexAuthCallback": {
-      "types": "./src/codexAuthCallback.ts",
-      "import": "./src/codexAuthCallback.ts"
-    },
     "./codexAuthHandoff": {
       "types": "./src/codexAuthHandoff.ts",
       "import": "./src/codexAuthHandoff.ts"
@@ -466,14 +402,6 @@
     "./markdownGithubAlerts": {
       "types": "./src/markdownGithubAlerts.ts",
       "import": "./src/markdownGithubAlerts.ts"
-    },
-    "./markdownFrontmatter": {
-      "types": "./src/markdownFrontmatter.ts",
-      "import": "./src/markdownFrontmatter.ts"
-    },
-    "./markdownTaskList": {
-      "types": "./src/markdownTaskList.ts",
-      "import": "./src/markdownTaskList.ts"
     },
     "./markdownListIndentation": {
       "types": "./src/markdownListIndentation.ts",

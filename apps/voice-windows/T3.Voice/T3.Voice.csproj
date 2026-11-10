@@ -19,7 +19,7 @@
     <ApplicationIcon>Assets/t3-voice.ico</ApplicationIcon>
     <AssemblyName>T3.Voice</AssemblyName>
     <RootNamespace>T3.Voice</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../T3.Voice.Core/T3.Voice.Core.csproj" />

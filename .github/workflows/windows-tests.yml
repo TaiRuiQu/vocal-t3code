@@ -4,7 +4,7 @@
 #
 #   gh workflow run windows-tests.yml --ref <branch> -f package=packages/shared
 #   gh workflow run windows-tests.yml --ref <branch> -f package=apps/server \
-#     -f files="src/process/externalLauncher.test.ts src/cli/theme.test.ts"
+#     -f files="src/process/externalLauncher.test.ts src/cli/config.test.ts"
 #   gh run watch && gh run view --log-failed
 name: Windows Tests
 
@@ -26,7 +26,7 @@ permissions:
 jobs:
   test:
     name: Test (${{ inputs.package || 'all non-server' }})
-    runs-on: blacksmith-8vcpu-windows-2025
+    runs-on: windows-2025
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -59,10 +59,6 @@ jobs:
 
       - name: Install
         run: vp install
-
-      - name: Ensure Electron runtime is installed
-        if: inputs.package == '' || inputs.package == 'apps/desktop'
-        run: vp run --filter "@t3tools/desktop" ensure:electron
 
       # `vp run ... test -- <files>` does not forward positional args to vitest,
       # so file-scoped runs call `vp test run` inside the package instead.

@@ -22,12 +22,7 @@ import {
   ProviderCompatibilityPolicy,
   resolveProviderCompatibility,
 } from "./providerCompatibility.ts";
-import { resolveAntigravityReleaseAsset } from "./antigravityRelease.ts";
-import bundledManifest from "./model-manifest.json" with { type: "json" };
 
-const decodeCompatibilityPolicies = Schema.decodeUnknownSync(
-  Schema.Array(ProviderCompatibilityPolicy),
-);
 const driver = ProviderDriverKind.make("codex");
 const policy: ProviderCompatibilityPolicy = {
   driver,
@@ -132,25 +127,6 @@ describe("provider compatibility", () => {
       );
     }
   });
-
-  it.each([
-    ["darwin", "arm64"],
-    ["win32", "x64"],
-  ] as const)(
-    "supports the managed Antigravity runtime for %s-%s in the bundled manifest",
-    (platform, arch) => {
-      const policies = decodeCompatibilityPolicies(bundledManifest.compatibility);
-      const release = resolveAntigravityReleaseAsset(platform, arch);
-      assert.strictEqual(
-        resolveProviderCompatibility(
-          policies,
-          ProviderDriverKind.make("antigravity"),
-          `agy_acp_server_${release?.version}`,
-        )?.status,
-        "supported",
-      );
-    },
-  );
 
   it("classifies boundaries and treats unlisted versions and release tags as unknown", () => {
     for (const [version, expected] of [

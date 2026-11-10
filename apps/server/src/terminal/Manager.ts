@@ -39,9 +39,7 @@ import { makeKeyedCoalescingWorker } from "@t3tools/shared/KeyedCoalescingWorker
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import { mergePathEntries } from "@t3tools/shared/shell";
 
-import { acpRegistryManagedBinaryDirectories } from "@t3tools/provider-acp-registry/server";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
@@ -1523,7 +1521,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const historyLineLimit = options.historyLineLimit ?? DEFAULT_HISTORY_LINE_LIMIT;
   const historyByteLimit = options.historyByteLimit ?? DEFAULT_HISTORY_BYTE_LIMIT;
   const platform = yield* HostProcess.Platform;
-  const architecture = yield* HostProcess.Architecture;
   const agentScope = yield* AgentScope;
   // Inherit the full environment minus createTerminalSpawnEnv's blocklist; allowlists silently drop user tooling variables.
   const baseEnv = options.env ?? process.env;
@@ -2450,38 +2447,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               platform,
               yield* HostProcess.HomeDirectory,
             );
-            // Append managed install directories so agent commands resolve without shadowing user/system tools.
-            if (
-              options.managedBinaryCacheDir !== undefined &&
-              options.managedBinaryToolsDir !== undefined
-            ) {
-              const managedDirectories = yield* acpRegistryManagedBinaryDirectories({
-                cacheDir: options.managedBinaryCacheDir,
-                toolsDir: options.managedBinaryToolsDir,
-                platform,
-                architecture,
-              }).pipe(
-                Effect.provideService(FileSystem.FileSystem, fileSystem),
-                Effect.provideService(Path.Path, path),
-              );
-              if (managedDirectories.length > 0) {
-                const delimiter = platform === "win32" ? ";" : ":";
-                const pathKey =
-                  platform === "win32"
-                    ? (Object.keys(terminalEnv).find(
-                        (candidate) => candidate.toLowerCase() === "path",
-                      ) ?? "PATH")
-                    : "PATH";
-                const merged = mergePathEntries(
-                  terminalEnv[pathKey],
-                  managedDirectories.join(delimiter),
-                  platform,
-                );
-                if (merged !== undefined) {
-                  terminalEnv[pathKey] = merged;
-                }
-              }
-            }
             const spawnResult = yield* trySpawn(shellCandidates, terminalEnv, session);
             ptyProcess = spawnResult.process;
             startedShell = spawnResult.shellLabel;

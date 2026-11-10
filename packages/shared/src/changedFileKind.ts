@@ -63,16 +63,6 @@ const DOCS_NAME = /\.(md|mdx|markdown|rst|adoc|txt)$/i;
 // Plain-text files that tools read as config or input, not prose.
 const NOT_DOCS_NAME = /^(requirements.*|constraints.*|CMakeLists|robots|llms)\.txt$/i;
 
-/**
- * Sorts a changed file by its path alone, using common naming conventions. Lockfiles and build
- * output count as generated, and test support (mocks, fixtures, snapshots) is kept apart from the
- * tests themselves, and prose (Markdown, plain text) is its own kind, so a reviewer can see how much of a change is logic.
- */
-export function isTestChangedFile(path: string): boolean {
-  const kind = classifyChangedFile(path);
-  return kind === "tests" || kind === "mocks";
-}
-
 export function classifyChangedFile(path: string): ChangedFileKind {
   const segments = path.replaceAll("\\", "/").split("/");
   const name = segments.pop() ?? "";

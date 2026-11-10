@@ -45,7 +45,6 @@ import {
   CodexProviderCapabilitiesV2,
   canReuseCodexContextUsage,
 } from "../Adapters/CodexAdapterV2.ts";
-import { AcpProviderCapabilitiesV2 } from "@t3tools/provider-acp/server/adapter";
 import * as EventSink from "../EventSink.ts";
 import * as EventStore from "../EventStore.ts";
 import * as LegacyV1ThreadImporter from "../legacy/LegacyV1ThreadImporter.ts";
@@ -1918,7 +1917,7 @@ describe("orchestration v2 provider switching", () => {
           makeTestAdapter({
             instanceId: GROK_MODEL_SELECTION.instanceId,
             driver: GROK_DRIVER,
-            capabilities: AcpProviderCapabilitiesV2,
+            capabilities: CodexProviderCapabilitiesV2,
             modelSelection: GROK_MODEL_SELECTION,
             responseByRunOrdinal: { 1: "Grok steered response" },
             capturedTurns,
