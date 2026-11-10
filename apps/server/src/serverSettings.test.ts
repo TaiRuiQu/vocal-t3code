@@ -2666,7 +2666,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
   (it) => {
     const claude = ProviderDriverKind.make("claudeAgent");
     const codex = ProviderDriverKind.make("codex");
-    const cursor = ProviderDriverKind.make("cursor");
+    const opencode = ProviderDriverKind.make("opencode");
     const bedrock = { name: "CLAUDE_CODE_USE_BEDROCK", value: "1", sensitive: false };
     const policy: ManagedPolicyDocument = {
       schemaVersion: 1,
@@ -2691,40 +2691,43 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
         const service = yield* ServerSettingsModule.ServerSettingsService;
         const config = yield* ServerConfig.ServerConfig;
         const fs = yield* FileSystem.FileSystem;
-        const cursorId = ProviderInstanceId.make("cursor_work");
+        const opencodeId = ProviderInstanceId.make("opencode_work");
         yield* fs.writeFileString(
           config.settingsPath,
           JSON.stringify({
             providerInstances: {
-              [cursorId]: { driver: cursor, enabled: true },
+              [opencodeId]: { driver: opencode, enabled: true },
               // A default instance id is no proof of its driver.
-              codex: { driver: cursor, enabled: true },
+              codex: { driver: opencode, enabled: true },
             },
-            textGenerationModelSelection: { instanceId: cursorId, model: "auto" },
+            textGenerationModelSelection: { instanceId: opencodeId, model: "example-model" },
           }),
         );
 
         const settings = yield* service.getSettings;
         // Never deleted: the instance stays for its threads, and the registry shows it unavailable.
-        assert.equal(settings.providerInstances[cursorId]?.driver, cursor);
+        assert.equal(settings.providerInstances[opencodeId]?.driver, opencode);
         // Built-in text generation does not fall back onto a disallowed driver either.
         assert.equal(settings.textGenerationModelSelection.instanceId, "claudeAgent");
 
         const rejected = yield* service
           .updateProviderInstance({
             operation: "create",
-            instanceId: ProviderInstanceId.make("cursor_new"),
-            instance: { driver: cursor, enabled: true },
+            instanceId: ProviderInstanceId.make("opencode_new"),
+            instance: { driver: opencode, enabled: true },
           })
           .pipe(Effect.flip);
         assert.equal(rejected.operation, "use-disallowed-provider");
-        assert.equal(rejected.message, "Example Corp's policy does not allow the Cursor provider.");
+        assert.equal(
+          rejected.message,
+          "Example Corp's policy does not allow the OpenCode provider.",
+        );
         // Switching it on for one project is enabling it too.
         const perProject = yield* service
           .updateSettings({
             projectSettingsOverrides: {
               [ProjectId.make("project-a")]: {
-                providerInstances: { [cursorId]: { enabled: true } },
+                providerInstances: { [opencodeId]: { enabled: true } },
               },
             },
           })
@@ -2734,18 +2737,18 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
         // The client echoes a default instance that was running before it was configured.
         yield* service.updateProviderInstance({
           operation: "upsert",
-          instanceId: ProviderInstanceId.make("cursor"),
-          instance: { driver: cursor, enabled: true },
+          instanceId: ProviderInstanceId.make("opencode"),
+          instance: { driver: opencode, enabled: true },
         });
 
         // Turning it off, or removing it, is still the user's call.
         yield* service.updateProviderInstance({
           operation: "upsert",
-          instanceId: cursorId,
-          instance: { driver: cursor, enabled: false },
+          instanceId: opencodeId,
+          instance: { driver: opencode, enabled: false },
         });
-        yield* service.updateProviderInstance({ operation: "remove", instanceId: cursorId });
-        assert.isUndefined((yield* service.getSettings).providerInstances[cursorId]);
+        yield* service.updateProviderInstance({ operation: "remove", instanceId: opencodeId });
+        assert.isUndefined((yield* service.getSettings).providerInstances[opencodeId]);
       }).pipe(Effect.provide(layerServerSettings(policy))),
     );
 
@@ -2887,7 +2890,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
   "server settings under a runtime mode ceiling",
   (it) => {
     const claude = ProviderDriverKind.make("claudeAgent");
-    const acpRegistry = ProviderDriverKind.make("acpRegistry");
+    const opencode = ProviderDriverKind.make("opencode");
     const policy: ManagedPolicyDocument = {
       schemaVersion: 1,
       organization: "Example Corp",
@@ -2990,7 +2993,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
         const config = yield* ServerConfig.ServerConfig;
         const fs = yield* FileSystem.FileSystem;
         const claudeId = ProviderInstanceId.make("claudeAgent");
-        const registryId = ProviderInstanceId.make("acp_devin");
+        const opencodeId = ProviderInstanceId.make("opencode_work");
         const userVariable = {
           name: "CLAUDE_CONFIG_DIR",
           value: "/tmp/allow-all",
@@ -3011,9 +3014,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
           JSON.stringify({
             providerInstances: {
               [claudeId]: storedClaude,
-              [registryId]: {
-                driver: acpRegistry,
-                config: { agentId: "devin", commandPath: "/tmp/agent", commandArgs: ["--yolo"] },
+              [opencodeId]: {
+                driver: opencode,
+                config: { serverUrl: "http://127.0.0.1:4096", customModels: ["local/example"] },
               },
             },
           }),
@@ -3029,7 +3032,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
         assert.deepEqual(claudeInstance.environment, [
           { name: "CLAUDE_CODE_USE_BEDROCK", value: "1", sensitive: false },
         ]);
-        assert.deepEqual(effective.providerInstances[registryId]?.config, { agentId: "devin" });
+        assert.deepEqual(effective.providerInstances[opencodeId]?.config, {
+          customModels: ["local/example"],
+        });
 
         const refused = (instance: typeof claudeInstance) =>
           service
@@ -3051,17 +3056,17 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
           environment: [{ name: "NODE_OPTIONS", value: "--require /tmp/x.js", sensitive: false }],
         });
         assert.equal(environment.managedSetting, "providerInstances.claudeAgent.environment");
-        const commandArgs = yield* service
+        const serverUrl = yield* service
           .updateProviderInstance({
             operation: "upsert",
-            instanceId: registryId,
+            instanceId: opencodeId,
             instance: {
-              driver: acpRegistry,
-              config: { agentId: "devin", commandArgs: ["--dangerously-skip-permissions"] },
+              driver: opencode,
+              config: { serverUrl: "http://127.0.0.1:5096" },
             },
           })
           .pipe(Effect.flip);
-        assert.equal(commandArgs.managedSetting, "providerInstances.acp_devin.config.commandArgs");
+        assert.equal(serverUrl.managedSetting, "providerInstances.opencode_work.config.serverUrl");
 
         // Unrelated writes carry the stored instance through unchanged, duplicates included.
         yield* service.updateSettings({ defaultAutoPull: true });
